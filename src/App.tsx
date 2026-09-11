@@ -13,6 +13,7 @@ import {
   getPlayerPits,
   AIMoveInfo,
   SowingStep,
+  getHint,
 } from './game/mancala';
 import { soundEngine } from './game/sound';
 import StartScreen from './components/StartScreen';
@@ -36,23 +37,38 @@ interface GameStats {
   draws: number;
 }
 
-// Flying stone animation component
-function FlyingStone({ from, to, onComplete }: { from: { x: number; y: number }; to: { x: number; y: number }; onComplete: () => void }) {
-  useEffect(() => {
-    const timer = setTimeout(onComplete, 120);
-    return () => clearTimeout(timer);
-  }, [onComplete]);
+interface Particle {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  color: string;
+  size: number;
+}
 
+// Particle system for capture and win effects
+function ParticleSystem({ particles }: { particles: Particle[] }) {
   return (
-    <div
-      className="fixed pointer-events-none z-50 animate-stone-fly"
-      style={{
-        left: `${to.x}px`,
-        top: `${to.y}px`,
-        transform: 'translate(-50%, -50%)',
-      }}
-    >
-      <div className="w-3 h-3 rounded-full bg-gradient-to-br from-amber-400 via-amber-600 to-amber-900 shadow-lg" />
+    <div className="fixed inset-0 pointer-events-none z-50">
+      {particles.map(p => (
+        <div
+          key={p.id}
+          className="absolute rounded-full"
+          style={{
+            left: p.x,
+            top: p.y,
+            width: p.size,
+            height: p.size,
+            backgroundColor: p.color,
+            opacity: p.life / p.maxLife,
+            transform: `translate(-50%, -50%)`,
+            transition: 'all 0.05s linear',
+          }}
+        />
+      ))}
     </div>
   );
 }
@@ -80,23 +96,21 @@ function Confetti({ active }: { active: boolean }) {
       color: string;
       rotation: number;
       rotSpeed: number;
-      shape: number;
     }
 
     const colors = ['#fbbf24', '#f59e0b', '#22c55e', '#3b82f6', '#ef4444', '#a855f7', '#ec4899'];
     const pieces: ConfettiPiece[] = [];
 
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 150; i++) {
       pieces.push({
         x: Math.random() * canvas.width,
         y: -20 - Math.random() * canvas.height * 0.5,
-        vx: (Math.random() - 0.5) * 5,
-        vy: Math.random() * 3 + 2,
-        size: Math.random() * 10 + 5,
+        vx: (Math.random() - 0.5) * 6,
+        vy: Math.random() * 4 + 3,
+        size: Math.random() * 12 + 6,
         color: colors[Math.floor(Math.random() * colors.length)],
         rotation: Math.random() * Math.PI * 2,
-        rotSpeed: (Math.random() - 0.5) * 0.3,
-        shape: Math.floor(Math.random() * 3),
+        rotSpeed: (Math.random() - 0.5) * 0.4,
       });
     }
 
@@ -106,7 +120,7 @@ function Confetti({ active }: { active: boolean }) {
       pieces.forEach(p => {
         p.x += p.vx;
         p.y += p.vy;
-        p.vy += 0.05;
+        p.vy += 0.08;
         p.vx *= 0.99;
         p.rotation += p.rotSpeed;
 
@@ -115,21 +129,7 @@ function Confetti({ active }: { active: boolean }) {
         ctx.rotate(p.rotation);
         ctx.fillStyle = p.color;
         ctx.globalAlpha = Math.max(0, 1 - p.y / canvas.height);
-
-        if (p.shape === 0) {
-          ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
-        } else if (p.shape === 1) {
-          ctx.beginPath();
-          ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
-          ctx.fill();
-        } else {
-          ctx.beginPath();
-          ctx.moveTo(0, -p.size / 2);
-          ctx.lineTo(p.size / 2, p.size / 2);
-          ctx.lineTo(-p.size / 2, p.size / 2);
-          ctx.closePath();
-          ctx.fill();
-        }
+        ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
         ctx.restore();
       });
 
@@ -146,41 +146,42 @@ function Confetti({ active }: { active: boolean }) {
   return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-[60]" />;
 }
 
-// 3D Stone component
+// 3D Stone component with realistic shading
 function Stone({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
-  const sizeMap = { sm: 'w-2 h-2', md: 'w-3 h-3', lg: 'w-4 h-4' };
+  const sizeMap = { sm: 'w-2.5 h-2.5', md: 'w-3.5 h-3.5', lg: 'w-5 h-5' };
   return (
     <div className={`${sizeMap[size]} rounded-full relative`}>
       <div className="absolute inset-0 rounded-full bg-gradient-to-br from-amber-300 via-amber-600 to-amber-900 shadow-md" />
-      <div className="absolute inset-[10%] rounded-full bg-gradient-to-br from-amber-200/70 to-transparent" />
-      <div className="absolute bottom-[10%] right-[15%] w-[20%] h-[20%] rounded-full bg-black/30" />
+      <div className="absolute inset-[8%] rounded-full bg-gradient-to-br from-amber-200/80 to-transparent" />
+      <div className="absolute bottom-[8%] right-[12%] w-[25%] h-[25%] rounded-full bg-black/40 blur-[1px]" />
+      <div className="absolute top-[15%] left-[20%] w-[30%] h-[20%] rounded-full bg-white/30 blur-[1px]" />
     </div>
   );
 }
 
-// Stone cluster inside a pit
+// Stone cluster with realistic arrangement
 function StoneCluster({ count, highlight }: { count: number; highlight?: boolean }) {
   if (count === 0) return null;
 
   const positions = [
-    { x: 0, y: -3 }, { x: -5, y: 2 }, { x: 5, y: 2 },
-    { x: -3, y: -5 }, { x: 3, y: -5 }, { x: -7, y: -1 },
-    { x: 7, y: -1 }, { x: 0, y: 5 },
+    { x: 0, y: -4 }, { x: -6, y: 2 }, { x: 6, y: 2 },
+    { x: -3, y: -6 }, { x: 3, y: -6 }, { x: -8, y: -1 },
+    { x: 8, y: -1 }, { x: 0, y: 6 },
   ];
 
   const stonesToShow = Math.min(count, 8);
 
   return (
     <div className="absolute inset-0 flex items-center justify-center">
-      <div className="relative w-12 h-12">
+      <div className="relative w-14 h-14">
         {positions.slice(0, stonesToShow).map((pos, i) => (
           <div
             key={i}
             className={`absolute transition-all duration-300 ${highlight ? 'animate-bounce-small' : ''}`}
             style={{
-              left: `calc(50% + ${pos.x}px - 4px)`,
-              top: `calc(50% + ${pos.y}px - 4px)`,
-              animationDelay: `${i * 40}ms`,
+              left: `calc(50% + ${pos.x}px - 5px)`,
+              top: `calc(50% + ${pos.y}px - 5px)`,
+              animationDelay: `${i * 30}ms`,
             }}
           >
             <Stone size="sm" />
@@ -213,7 +214,11 @@ export default function App() {
   const [showRules, setShowRules] = useState(false);
   const [thinkingDots, setThinkingDots] = useState(0);
   const [hoveredPit, setHoveredPit] = useState<number | null>(null);
-  const [flyingStones, setFlyingStones] = useState<Array<{ id: number; from: { x: number; y: number }; to: { x: number; y: number } }>>([]);
+  const [hintPit, setHintPit] = useState<number | null>(null);
+  const [particles, setParticles] = useState<Particle[]>([]);
+  const [scoreHistory, setScoreHistory] = useState<number[]>([0, 0]);
+  const [gameTime, setGameTime] = useState(0);
+  const [showHint, setShowHint] = useState(false);
 
   useEffect(() => {
     soundEngine.setEnabled(soundEnabled);
@@ -226,6 +231,51 @@ export default function App() {
     }, 400);
     return () => clearInterval(interval);
   }, [aiThinking]);
+
+  // Game timer
+  useEffect(() => {
+    if (!gameStarted || gameOver) return;
+    const interval = setInterval(() => {
+      setGameTime(t => t + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [gameStarted, gameOver]);
+
+  // Particle animation
+  useEffect(() => {
+    if (particles.length === 0) return;
+    const interval = setInterval(() => {
+      setParticles(prev => prev
+        .map(p => ({
+          ...p,
+          x: p.x + p.vx,
+          y: p.y + p.vy,
+          vy: p.vy + 0.5,
+          life: p.life - 1,
+        }))
+        .filter(p => p.life > 0)
+      );
+    }, 16);
+    return () => clearInterval(interval);
+  }, [particles.length > 0]);
+
+  const createParticles = useCallback((x: number, y: number, color: string, count: number = 20) => {
+    const newParticles: Particle[] = [];
+    for (let i = 0; i < count; i++) {
+      newParticles.push({
+        id: Date.now() + i,
+        x,
+        y,
+        vx: (Math.random() - 0.5) * 10,
+        vy: (Math.random() - 0.5) * 10 - 5,
+        life: 60,
+        maxLife: 60,
+        color,
+        size: Math.random() * 6 + 3,
+      });
+    }
+    setParticles(prev => [...prev, ...newParticles]);
+  }, []);
 
   const resetGame = useCallback(() => {
     setBoard(createInitialBoard());
@@ -242,10 +292,13 @@ export default function App() {
     setLandingPit(null);
     setShowConfetti(false);
     setLastCapture(false);
-    setFlyingStones([]);
+    setHintPit(null);
+    setParticles([]);
+    setScoreHistory([0, 0]);
+    setGameTime(0);
+    setShowHint(false);
   }, []);
 
-  // Animate sowing step by step with flying stones
   const animateSowing = useCallback((steps: SowingStep[], callback: () => void) => {
     let i = 0;
     const animate = () => {
@@ -255,13 +308,13 @@ export default function App() {
         setLandingPit(step.pit);
         soundEngine.playStoneDrop();
         i++;
-        const delay = 70 + Math.random() * 30;
+        const delay = 60 + Math.random() * 20;
         setTimeout(animate, delay);
       } else {
         setTimeout(() => {
           setLandingPit(null);
           callback();
-        }, 120);
+        }, 100);
       }
     };
     animate();
@@ -270,6 +323,7 @@ export default function App() {
   const executeMove = useCallback((pit: number, player: Player) => {
     setAnimating(true);
     setSourcePit(pit);
+    setHintPit(null);
 
     const tempBoard = [...board];
     tempBoard[pit] = 0;
@@ -282,10 +336,21 @@ export default function App() {
         setBoard(result.newBoard);
         setSourcePit(null);
 
+        // Update score history
+        setScoreHistory([result.newBoard[6], result.newBoard[13]]);
+
         if (result.captured && result.capturedPit !== null) {
           setCapturedPits(new Set([result.capturedPit, result.sowingPath[result.sowingPath.length - 1]]));
           setLastCapture(true);
           soundEngine.playCapture();
+          
+          // Create particles at capture location
+          const pitElement = document.querySelector(`[data-pit="${result.capturedPit}"]`);
+          if (pitElement) {
+            const rect = pitElement.getBoundingClientRect();
+            createParticles(rect.left + rect.width / 2, rect.top + rect.height / 2, '#fbbf24', 30);
+          }
+          
           setTimeout(() => {
             setCapturedPits(new Set());
             setLastCapture(false);
@@ -311,7 +376,7 @@ export default function App() {
           soundEngine.playGameOver(w === 1);
           if (w === 1) {
             setShowConfetti(true);
-            setTimeout(() => setShowConfetti(false), 4000);
+            setTimeout(() => setShowConfetti(false), 5000);
           }
           setMessage(w === 1 ? '🎉 おめでとうございます！あなたの勝ちです！' :
                      w === 2 ? '🤖 AIの勝利...また挑戦しましょう！' : '🤝 引き分けです！');
@@ -330,7 +395,7 @@ export default function App() {
         setAnimating(false);
       });
     }, 150);
-  }, [board, animateSowing]);
+  }, [board, animateSowing, createParticles]);
 
   const handlePlayerMove = useCallback((pit: number) => {
     if (gameOver || currentPlayer !== 1 || aiThinking || animating) return;
@@ -343,6 +408,17 @@ export default function App() {
     }));
     executeMove(pit, 1);
   }, [board, currentPlayer, gameOver, aiThinking, animating, executeMove]);
+
+  const handleShowHint = useCallback(() => {
+    if (currentPlayer !== 1 || gameOver || aiThinking || animating) return;
+    const hint = getHint(board);
+    if (hint) {
+      setHintPit(hint.pit);
+      setShowHint(true);
+      soundEngine.playHint();
+      setTimeout(() => setShowHint(false), 3000);
+    }
+  }, [board, currentPlayer, gameOver, aiThinking, animating]);
 
   useEffect(() => {
     if (currentPlayer === 2 && !gameOver && gameStarted && !animating) {
@@ -398,12 +474,14 @@ export default function App() {
         if (validMoves.includes(pit)) {
           handlePlayerMove(pit);
         }
+      } else if (e.key === 'h' || e.key === 'H') {
+        handleShowHint();
       }
     };
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [gameStarted, gameOver, currentPlayer, aiThinking, animating, validMoves, handlePlayerMove]);
+  }, [gameStarted, gameOver, currentPlayer, aiThinking, animating, validMoves, handlePlayerMove, handleShowHint]);
 
   if (!gameStarted) {
     return (
@@ -419,26 +497,21 @@ export default function App() {
   const p1Total = board[6] + getPlayerPits(1).reduce((s, p) => s + board[p], 0);
   const p2Total = board[13] + getPlayerPits(2).reduce((s, p) => s + board[p], 0);
 
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-stone-950 via-zinc-900 to-stone-950 flex flex-col items-center relative overflow-hidden select-none">
-      {/* Ambient background with subtle animation */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-amber-500/[0.03] rounded-full blur-3xl animate-pulse-slow" />
         <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-amber-600/[0.03] rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '2s' }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-amber-700/[0.02] rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '4s' }} />
       </div>
 
+      <ParticleSystem particles={particles} />
       <Confetti active={showConfetti} />
-
-      {/* Flying stones */}
-      {flyingStones.map(stone => (
-        <FlyingStone
-          key={stone.id}
-          from={stone.from}
-          to={stone.to}
-          onComplete={() => setFlyingStones(prev => prev.filter(s => s.id !== stone.id))}
-        />
-      ))}
 
       {/* Header */}
       <div className="relative z-10 w-full max-w-5xl px-4 pt-4 pb-2">
@@ -453,6 +526,9 @@ export default function App() {
             </div>
           </div>
           <div className="flex gap-1.5 items-center">
+            <div className="text-xs text-amber-400/40 font-mono mr-2">
+              ⏱️ {formatTime(gameTime)}
+            </div>
             <button
               onClick={() => setShowRules(!showRules)}
               className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-amber-200/50 hover:text-amber-200 transition-all flex items-center justify-center text-sm font-bold"
@@ -461,9 +537,16 @@ export default function App() {
               ?
             </button>
             <button
+              onClick={handleShowHint}
+              disabled={currentPlayer !== 1 || gameOver || aiThinking || animating}
+              className="w-8 h-8 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-200/50 hover:text-amber-200 transition-all flex items-center justify-center text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+              title="ヒント (H)"
+            >
+              💡
+            </button>
+            <button
               onClick={() => setSoundEnabled(!soundEnabled)}
               className={`w-8 h-8 rounded-lg transition-all flex items-center justify-center text-sm ${soundEnabled ? 'bg-white/5 text-amber-200/50 hover:bg-white/10' : 'bg-white/5 text-amber-200/20 hover:bg-white/10'}`}
-              title={soundEnabled ? 'サウンドON' : 'サウンドOFF'}
             >
               {soundEnabled ? '🔊' : '🔇'}
             </button>
@@ -477,7 +560,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Rules Panel */}
       {showRules && (
         <div className="relative z-10 w-full max-w-5xl px-4 mb-2 animate-fade-in">
           <div className="bg-white/[0.02] backdrop-blur rounded-xl p-4 border border-white/5">
@@ -498,7 +580,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Score Display */}
+      {/* Score Display with Graph */}
       <div className="relative z-10 w-full max-w-5xl px-4 mb-2">
         <div className="flex items-center gap-3">
           <div className={`flex-1 rounded-xl p-3 transition-all duration-500 ${
@@ -558,21 +640,23 @@ export default function App() {
               'bg-yellow-500/10 text-yellow-300 border border-yellow-500/20'
             : lastCapture
             ? 'bg-yellow-500/10 text-yellow-300 border border-yellow-500/20 animate-pulse'
+            : showHint
+            ? 'bg-purple-500/10 text-purple-300 border border-purple-500/20'
             : aiThinking
             ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20'
             : 'bg-white/[0.02] text-amber-200/60 border border-white/5'
         }`}>
-          {aiThinking ? (
-            <span>
-              🤖 AI思考中{'.'.repeat(thinkingDots)}{' '.repeat(3 - thinkingDots)}
-            </span>
+          {showHint && hintPit !== null ? (
+            <span>💡 ヒント: 穴 {hintPit + 1} がおすすめです！</span>
+          ) : aiThinking ? (
+            <span>🤖 AI思考中{'.'.repeat(thinkingDots)}{' '.repeat(3 - thinkingDots)}</span>
           ) : message}
         </div>
       </div>
 
       {/* Game Board */}
       <div className="relative z-10 w-full max-w-5xl px-2 md:px-4">
-        <div className="relative rounded-2xl md:rounded-[2rem] overflow-hidden shadow-2xl transform transition-transform duration-500 hover:scale-[1.01]" style={{
+        <div className="relative rounded-2xl md:rounded-[2rem] overflow-hidden shadow-2xl transform transition-transform duration-500 hover:scale-[1.005]" style={{
           perspective: '1000px',
         }}>
           <div className="absolute inset-0 bg-gradient-to-b from-amber-800/70 via-amber-900/70 to-amber-950/70 rounded-2xl md:rounded-[2rem]" />
@@ -613,6 +697,7 @@ export default function App() {
                       isCaptured={capturedPits.has(pit)}
                       isPreview={previewPits.has(pit)}
                       isHovered={hoveredPit === pit}
+                      isHint={hintPit === pit && showHint}
                       onHover={handlePitHover}
                       onClick={() => currentPlayer === 2 && !gameOver && handlePlayerMove(pit)}
                       color="blue"
@@ -639,6 +724,7 @@ export default function App() {
                         isCaptured={capturedPits.has(pit)}
                         isPreview={previewPits.has(pit)}
                         isHovered={hoveredPit === pit}
+                        isHint={hintPit === pit && showHint}
                         onHover={handlePitHover}
                         onClick={() => handlePlayerMove(pit)}
                         color="green"
@@ -694,10 +780,9 @@ export default function App() {
       )}
 
       <div className="relative z-10 w-full max-w-5xl px-4 mt-2 pb-4">
-        {/* Keyboard hint */}
         {!gameOver && currentPlayer === 1 && (
           <div className="text-center mb-2 text-[10px] text-amber-400/20">
-            💡 キーボード: 1-6 で穴を選択
+            💡 キーボード: 1-6 で穴を選択、H でヒント
           </div>
         )}
         
@@ -780,7 +865,10 @@ export default function App() {
                     <div className="text-[10px] text-amber-400/30">ボーナス</div>
                   </div>
                 </div>
-                {/* Performance rating */}
+                <div className="mt-3 pt-3 border-t border-white/[0.03]">
+                  <div className="text-[10px] text-amber-400/30 mb-1">プレイ時間</div>
+                  <div className="text-sm font-bold text-amber-200/70">{formatTime(gameTime)}</div>
+                </div>
                 {winner === 1 && (
                   <div className="mt-3 pt-3 border-t border-white/[0.03]">
                     <div className="text-[10px] text-amber-400/30 mb-1">パフォーマンス</div>
@@ -888,7 +976,7 @@ function StorePit({ count, label, active, color }: { count: number; label: strin
   );
 }
 
-function PitCell({ pit, count, isValid, isSource, isLanding, isCaptured, isPreview, isHovered, onHover, onClick, color, playerSide }: {
+function PitCell({ pit, count, isValid, isSource, isLanding, isCaptured, isPreview, isHovered, isHint, onHover, onClick, color, playerSide }: {
   pit: number;
   count: number;
   isValid: boolean;
@@ -897,6 +985,7 @@ function PitCell({ pit, count, isValid, isSource, isLanding, isCaptured, isPrevi
   isCaptured: boolean;
   isPreview: boolean;
   isHovered: boolean;
+  isHint: boolean;
   onHover: (pit: number | null) => void;
   onClick: () => void;
   color: 'green' | 'blue';
@@ -908,6 +997,7 @@ function PitCell({ pit, count, isValid, isSource, isLanding, isCaptured, isPrevi
       source: 'border-green-500/15',
       landing: 'border-green-400/30',
       captured: 'border-yellow-400/50 shadow-yellow-500/20',
+      hint: 'border-purple-400/60 shadow-purple-500/30',
       default: 'border-amber-900/10',
       countText: 'text-green-300',
     },
@@ -916,13 +1006,15 @@ function PitCell({ pit, count, isValid, isSource, isLanding, isCaptured, isPrevi
       source: 'border-blue-500/15',
       landing: 'border-blue-400/30',
       captured: 'border-yellow-400/50 shadow-yellow-500/20',
+      hint: 'border-purple-400/60 shadow-purple-500/30',
       default: 'border-amber-900/10',
       countText: 'text-blue-300',
     },
   };
   const cc = colorClasses[color];
 
-  const borderClass = isCaptured ? cc.captured :
+  const borderClass = isHint ? cc.hint :
+    isCaptured ? cc.captured :
     isValid ? cc.valid :
     isSource ? cc.source :
     isLanding ? cc.landing :
@@ -935,12 +1027,12 @@ function PitCell({ pit, count, isValid, isSource, isLanding, isCaptured, isPrevi
       onMouseLeave={() => onHover(null)}
       onTouchStart={() => isValid && onHover(pit)}
       onTouchEnd={() => onHover(null)}
-      disabled={!isValid}
+      data-pit={pit}
       aria-label={`穴 ${pit + 1}: ${count}個の石${isValid ? '（クリック可能）' : ''}`}
       aria-disabled={!isValid}
       className={`relative aspect-square rounded-full transition-all duration-300 border-2 ${borderClass} ${
         isValid ? `cursor-pointer hover:scale-110 shadow-lg active:scale-95 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 ${color === 'green' ? 'focus:ring-green-400' : 'focus:ring-blue-400'}` : 'opacity-50'
-      } ${isCaptured ? 'animate-capture-flash' : ''}`}
+      } ${isCaptured ? 'animate-capture-flash' : ''} ${isHint ? 'animate-pulse' : ''}`}
     >
       <div className="absolute inset-[2px] rounded-full bg-gradient-to-b from-stone-900/60 to-stone-950/80" style={{
         boxShadow: 'inset 0 3px 10px rgba(0,0,0,0.5), inset 0 -1px 3px rgba(255,255,255,0.02)',
@@ -948,7 +1040,7 @@ function PitCell({ pit, count, isValid, isSource, isLanding, isCaptured, isPrevi
 
       <div className="absolute inset-[12%] rounded-full bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none" />
 
-      {isValid && (
+      {isValid && !isHint && (
         <>
           <div className={`absolute inset-0 rounded-full animate-pulse-subtle ${
             color === 'green' ? 'bg-green-400/[0.05]' : 'bg-blue-400/[0.05]'
@@ -957,6 +1049,10 @@ function PitCell({ pit, count, isValid, isSource, isLanding, isCaptured, isPrevi
             color === 'green' ? 'bg-green-400/10' : 'bg-blue-400/10'
           } blur-sm`} />
         </>
+      )}
+
+      {isHint && (
+        <div className="absolute inset-0 rounded-full bg-purple-400/10 animate-pulse" />
       )}
 
       {isLanding && (
@@ -977,7 +1073,7 @@ function PitCell({ pit, count, isValid, isSource, isLanding, isCaptured, isPrevi
         <div className="absolute inset-[20%] rounded-full border border-dashed border-amber-600/20 animate-pulse" />
       )}
 
-      {isPreview && !isValid && (
+      {isPreview && !isValid && !isHint && (
         <div className={`absolute inset-0 rounded-full ${
           color === 'green' ? 'bg-green-400/10' : 'bg-blue-400/10'
         } animate-pulse`} />

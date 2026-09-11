@@ -231,3 +231,28 @@ export function getBestMove(board: Board, player: Player, depth: number = 6): AI
 
   return { move: bestMove, score: bestScore, allScores };
 }
+
+// Get hint for player (returns best move for player 1)
+export function getHint(board: Board): { pit: number; score: number } | null {
+  const moves = getValidMoves(board, 1);
+  if (moves.length === 0) return null;
+
+  let bestMove = moves[0];
+  let bestScore = -Infinity;
+
+  for (const move of moves) {
+    const { newBoard, extraTurn } = makeMove(board, move, 1);
+    let score: number;
+    if (extraTurn) {
+      score = minimax(newBoard, 4, -Infinity, Infinity, true, 1, 1);
+    } else {
+      score = minimax(newBoard, 3, -Infinity, Infinity, false, 2, 1);
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = move;
+    }
+  }
+
+  return { pit: bestMove, score: bestScore };
+}

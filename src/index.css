@@ -82,6 +82,15 @@
   }
 }
 
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(168, 85, 247, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.6);
+  }
+}
+
 .animate-fade-in {
   animation: fade-in 0.3s ease-out;
 }
@@ -129,6 +138,10 @@
 
 .animate-pulse-slow {
   animation: pulse-slow 8s ease-in-out infinite;
+}
+
+.animate-glow {
+  animation: glow 2s ease-in-out infinite;
 }
 
 /* ===== Global Styles ===== */
