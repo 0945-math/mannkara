@@ -24,6 +24,9 @@ button{font:inherit}
 .pit{width:100%;aspect-ratio:1.25;min-height:88px;padding:8px;border-radius:50%;border:4px solid #2a1b10;background:radial-gradient(ellipse at 35% 30%,#76502e 0%,#49301d 42%,#21150e 100%);color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:inset 0 10px 18px #000a,0 3px 0 #b47739}
 .pit:disabled{cursor:default;opacity:.72}
 .pit:not(:disabled):hover{outline:3px solid #f2bf5c;transform:translateY(-2px)}
+.pit.move-from{outline:4px solid #fff;box-shadow:0 0 0 7px #f2bf5c,inset 0 10px 18px #000a,0 3px 0 #b47739;transform:scale(1.06)}
+.pit.move-to{outline:4px solid #fff;box-shadow:0 0 0 7px #f2bf5c,inset 0 10px 18px #000a,0 3px 0 #b47739;transform:scale(1.08)}
+.store.move-to{outline:4px solid #fff;box-shadow:0 0 0 7px #f2bf5c,inset 0 8px 18px #0008,0 3px 0 #b47739}
 .pit small{font-size:12px;opacity:.65}
 .pit strong{font-size:32px;line-height:1.1}
 .help{opacity:.75;margin-top:18px}
@@ -65,9 +68,10 @@ function empty(p){return(p?P2:P1).every(i=>board[i]===0)}
 function over(){return empty(0)||empty(1)}
 function move(i,p){
  if(busy||turn!==p||board[i]===0)return;
- let n=board.slice(),stones=n[i];n[i]=0;let x=i;
- while(stones--){x=(x+1)%14;n[x]++}
+ let n=board.slice(),stones=n[i];n[i]=0;let x=i,path=[];
+ while(stones--){x=(x+1)%14;n[x]++;path.push(x)}
  board=n;
+ if(p===2)showAIMove(i,path);
  if(over()){busy=true;render();msg(empty(0)?'あなたの勝ちです。':'AIの勝ちです。');return}
  if((p===1&&x===6)||(p===2&&x===13)){render();msg(p===1?'ゴールで終わったので、もう一度です。':'AIはゴールで終わったので、もう一度です。');if(p===2)ai();return}
  turn=p===1?2:1;render();msg(turn===1?'あなたの番です。':'AIの番です。');if(turn===2)ai();
@@ -88,6 +92,25 @@ function choose(){
 }
 function ai(){if(over()||turn!==2)return;busy=true;setTimeout(()=>{busy=false;const i=choose();if(i>=0)move(i,2)},350)}
 function msg(t){$('message').textContent=t}
+function pitElement(i){return document.querySelector('#'+(i<7?'human':'ai')).children[i<7?i:i-7]}
+function storeElement(i){return i===6?document.querySelector('#s1').parentElement:document.querySelector('#s2').parentElement}
+function clearMove(){document.querySelectorAll('.move-from,.move-to').forEach(e=>e.classList.remove('move-from','move-to'))}
+function showAIMove(from,path){
+ clearMove();
+ const labels=path.map(i=>i===6?'あなたのゴール':i===13?'AIゴール':'穴'+(i+1));
+ msg('AI：穴'+(from+1)+' から  '+labels.join(' → '));
+ const source=pitElement(from); if(source)source.classList.add('move-from');
+ let k=0;
+ const step=()=>{
+   if(k>=path.length)return;
+   const e=path[k]===6||path[k]===13?storeElement(path[k]):pitElement(path[k]);
+   if(e){e.classList.remove('move-to');void e.offsetWidth;e.classList.add('move-to');}
+   k++;
+   setTimeout(step,220);
+ };
+ setTimeout(step,180);
+ setTimeout(clearMove,Math.max(1200,path.length*220+500));
+}
 function render(){
  $('s1').textContent=board[6];$('s2').textContent=board[13];
  $('human').innerHTML='';$('ai').innerHTML='';
