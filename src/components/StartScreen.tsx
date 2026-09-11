@@ -223,7 +223,7 @@ export default function StartScreen({ onStart, difficulty, onDifficultyChange }:
             <div className="mt-3 bg-white/[0.03] backdrop-blur-sm rounded-xl p-4 border border-white/[0.05] animate-fade-in">
               <div className="space-y-3 text-xs">
                 {[
-                  { icon: '🎯', text: '自分の穴を選んで石を反時計回りに配ります' },
+                  { icon: '🎯', text: '各穴に3個ずつ石を配置し、自分の穴を選んで反時計回りに配ります' },
                   { icon: '✨', text: '最後の石が自分のマンカラに入ったらボーナスターン', color: 'text-green-400' },
                   { icon: '💎', text: '最後の石が自分の空の穴に入ったら反対側の石をゲット', color: 'text-yellow-400' },
                   { icon: '🏁', text: 'どちらかの穴が全て空になったらゲーム終了' },

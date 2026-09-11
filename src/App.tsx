@@ -302,8 +302,8 @@ export default function App() {
                 <div className="text-3xl font-black text-green-400 leading-none">{board[6]}</div>
               </div>
               <div className="text-right">
-                <div className="text-[10px] text-amber-400/40">{board[6] + getPlayerPits(1).reduce((s, p) => s + board[p], 0)}/48</div>
-                <div className="text-sm text-amber-300/50 font-bold">{Math.round((board[6] / 48) * 100)}%</div>
+                <div className="text-[10px] text-amber-400/40">{board[6] + getPlayerPits(1).reduce((s, p) => s + board[p], 0)}/36</div>
+                <div className="text-sm text-amber-300/50 font-bold">{Math.round((board[6] / 36) * 100)}%</div>
               </div>
             </div>
           </div>
@@ -321,8 +321,8 @@ export default function App() {
                 <div className="text-3xl font-black text-blue-400 leading-none">{board[13]}</div>
               </div>
               <div className="text-right">
-                <div className="text-[10px] text-amber-400/40">{board[13] + getPlayerPits(2).reduce((s, p) => s + board[p], 0)}/48</div>
-                <div className="text-sm text-amber-300/50 font-bold">{Math.round((board[13] / 48) * 100)}%</div>
+                <div className="text-[10px] text-amber-400/40">{board[13] + getPlayerPits(2).reduce((s, p) => s + board[p], 0)}/36</div>
+                <div className="text-sm text-amber-300/50 font-bold">{Math.round((board[13] / 36) * 100)}%</div>
               </div>
               <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg transition-all ${
                 currentPlayer === 2 && !gameOver ? 'bg-blue-500/25 ring-2 ring-blue-400/50' : 'bg-white/10'

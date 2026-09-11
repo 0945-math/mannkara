@@ -8,7 +8,7 @@
 export type Player = 1 | 2;
 export type Board = number[];
 
-export const INITIAL_STONES = 4;
+export const INITIAL_STONES = 3; // カラハの標準ルール
 export const PITS_PER_SIDE = 6;
 
 export function createInitialBoard(): Board {
