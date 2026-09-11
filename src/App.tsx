@@ -8,12 +8,12 @@ import {
   getFinalBoard,
   getWinner,
   getValidMoves,
-  getBestMove,
   isValidMove,
   getPlayerPits,
   AIMoveInfo,
   getHint,
 } from './game/mancala';
+import { getBestMoveMCTS } from './game/mcts';
 import { soundEngine } from './game/sound';
 import StartScreen from './components/StartScreen';
 import GameBoard from './components/GameBoard';
@@ -23,9 +23,9 @@ type Difficulty = 'easy' | 'medium' | 'hard';
 
 function getAIDepth(difficulty: Difficulty): number {
   switch (difficulty) {
-    case 'easy': return 4;
-    case 'medium': return 8;
-    case 'hard': return 12;
+    case 'easy': return 10; // 1000回シミュレーション
+    case 'medium': return 30; // 3000回シミュレーション
+    case 'hard': return 80; // 8000回シミュレーション
   }
 }
 
@@ -185,7 +185,8 @@ export default function App() {
     if (currentPlayer === 2 && !gameOver && gameStarted && !animating) {
       setAiThinking(true);
       const timer = setTimeout(() => {
-        const info = getBestMove(board, 2, getAIDepth(difficulty));
+        const iterations = getAIDepth(difficulty) * 100; // 探索回数を設定
+        const info = getBestMoveMCTS(board, 2, iterations);
         setAiInfo(info);
 
         if (info.move === -1) {
