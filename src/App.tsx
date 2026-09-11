@@ -37,6 +37,14 @@ interface GameStats {
   draws: number;
 }
 
+interface FlyingStone {
+  id: number;
+  fromPit: number;
+  toPit: number;
+  progress: number;
+  color: string;
+}
+
 interface Particle {
   id: number;
   x: number;
@@ -50,7 +58,7 @@ interface Particle {
   type: 'circle' | 'star' | 'spark';
 }
 
-// Enhanced Particle System
+// Enhanced Particle System with glow effects
 function ParticleSystem({ particles }: { particles: Particle[] }) {
   return (
     <div className="fixed inset-0 pointer-events-none z-50">
@@ -64,8 +72,9 @@ function ParticleSystem({ particles }: { particles: Particle[] }) {
             width: p.size,
             height: p.size,
             opacity: p.life / p.maxLife,
-            transform: `translate(-50%, -50%) rotate(${(p.life / p.maxLife) * 360}deg)`,
+            transform: `translate(-50%, -50%) rotate(${(p.life / p.maxLife) * 360}deg) scale(${0.5 + (p.life / p.maxLife) * 0.5})`,
             transition: 'all 0.05s linear',
+            filter: `blur(${p.type === 'spark' ? 2 : 0}px)`,
           }}
         >
           {p.type === 'circle' && (
@@ -73,7 +82,7 @@ function ParticleSystem({ particles }: { particles: Particle[] }) {
               className="w-full h-full rounded-full"
               style={{
                 backgroundColor: p.color,
-                boxShadow: `0 0 ${p.size}px ${p.color}`,
+                boxShadow: `0 0 ${p.size * 2}px ${p.color}, 0 0 ${p.size * 4}px ${p.color}40`,
               }}
             />
           )}
@@ -83,7 +92,7 @@ function ParticleSystem({ particles }: { particles: Particle[] }) {
               style={{
                 backgroundColor: p.color,
                 clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)',
-                boxShadow: `0 0 ${p.size}px ${p.color}`,
+                boxShadow: `0 0 ${p.size * 2}px ${p.color}`,
               }}
             />
           )}
@@ -92,7 +101,7 @@ function ParticleSystem({ particles }: { particles: Particle[] }) {
               className="w-full h-full rounded-full"
               style={{
                 background: `radial-gradient(circle, ${p.color} 0%, transparent 70%)`,
-                boxShadow: `0 0 ${p.size * 2}px ${p.color}`,
+                boxShadow: `0 0 ${p.size * 3}px ${p.color}, 0 0 ${p.size * 6}px ${p.color}60`,
               }}
             />
           )}
@@ -102,7 +111,46 @@ function ParticleSystem({ particles }: { particles: Particle[] }) {
   );
 }
 
-// Enhanced Confetti
+// Flying stones animation
+function FlyingStones({ stones, pitRefs }: { stones: FlyingStone[]; pitRefs: React.MutableRefObject<Map<number, HTMLButtonElement>> }) {
+  return (
+    <div className="fixed inset-0 pointer-events-none z-40">
+      {stones.map(stone => {
+        const fromRef = pitRefs.current.get(stone.fromPit);
+        const toRef = pitRefs.current.get(stone.toPit);
+        if (!fromRef || !toRef) return null;
+
+        const fromRect = fromRef.getBoundingClientRect();
+        const toRect = toRef.getBoundingClientRect();
+        
+        const fromX = fromRect.left + fromRect.width / 2;
+        const fromY = fromRect.top + fromRect.height / 2;
+        const toX = toRect.left + toRect.width / 2;
+        const toY = toRect.top + toRect.height / 2;
+        
+        const currentX = fromX + (toX - fromX) * stone.progress;
+        const currentY = fromY + (toY - fromY) * stone.progress - Math.sin(stone.progress * Math.PI) * 50;
+
+        return (
+          <div
+            key={stone.id}
+            className="absolute w-4 h-4 rounded-full"
+            style={{
+              left: currentX,
+              top: currentY,
+              transform: 'translate(-50%, -50%)',
+              background: `radial-gradient(circle at 30% 30%, ${stone.color}, ${stone.color}80)`,
+              boxShadow: `0 0 10px ${stone.color}, 0 4px 8px rgba(0,0,0,0.3)`,
+              opacity: 1 - stone.progress * 0.3,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+// Enhanced Confetti with more variety
 function Confetti({ active }: { active: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -126,22 +174,26 @@ function Confetti({ active }: { active: boolean }) {
       rotation: number;
       rotSpeed: number;
       shape: number;
+      wobble: number;
+      wobbleSpeed: number;
     }
 
-    const colors = ['#fbbf24', '#f59e0b', '#22c55e', '#3b82f6', '#ef4444', '#a855f7', '#ec4899', '#fcd34d'];
+    const colors = ['#fbbf24', '#f59e0b', '#22c55e', '#3b82f6', '#ef4444', '#a855f7', '#ec4899', '#fcd34d', '#10b981', '#8b5cf6'];
     const pieces: ConfettiPiece[] = [];
 
-    for (let i = 0; i < 200; i++) {
+    for (let i = 0; i < 250; i++) {
       pieces.push({
         x: Math.random() * canvas.width,
         y: -20 - Math.random() * canvas.height * 0.5,
-        vx: (Math.random() - 0.5) * 8,
-        vy: Math.random() * 5 + 4,
-        size: Math.random() * 14 + 8,
+        vx: (Math.random() - 0.5) * 10,
+        vy: Math.random() * 6 + 5,
+        size: Math.random() * 16 + 10,
         color: colors[Math.floor(Math.random() * colors.length)],
         rotation: Math.random() * Math.PI * 2,
-        rotSpeed: (Math.random() - 0.5) * 0.5,
-        shape: Math.floor(Math.random() * 4),
+        rotSpeed: (Math.random() - 0.5) * 0.6,
+        shape: Math.floor(Math.random() * 5),
+        wobble: Math.random() * Math.PI * 2,
+        wobbleSpeed: Math.random() * 0.1 + 0.05,
       });
     }
 
@@ -149,18 +201,19 @@ function Confetti({ active }: { active: boolean }) {
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       pieces.forEach(p => {
-        p.x += p.vx;
+        p.x += p.vx + Math.sin(p.wobble) * 2;
         p.y += p.vy;
-        p.vy += 0.1;
+        p.vy += 0.12;
         p.vx *= 0.99;
         p.rotation += p.rotSpeed;
+        p.wobble += p.wobbleSpeed;
 
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.rotate(p.rotation);
         ctx.fillStyle = p.color;
         ctx.globalAlpha = Math.max(0, 1 - p.y / canvas.height);
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 15;
         ctx.shadowColor = p.color;
 
         if (p.shape === 0) {
@@ -176,8 +229,8 @@ function Confetti({ active }: { active: boolean }) {
           ctx.lineTo(-p.size / 2, p.size / 2);
           ctx.closePath();
           ctx.fill();
-        } else {
-          // Star shape
+        } else if (p.shape === 3) {
+          // Star
           ctx.beginPath();
           for (let i = 0; i < 5; i++) {
             const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
@@ -186,6 +239,15 @@ function Confetti({ active }: { active: boolean }) {
             if (i === 0) ctx.moveTo(x, y);
             else ctx.lineTo(x, y);
           }
+          ctx.closePath();
+          ctx.fill();
+        } else {
+          // Diamond
+          ctx.beginPath();
+          ctx.moveTo(0, -p.size / 2);
+          ctx.lineTo(p.size / 3, 0);
+          ctx.lineTo(0, p.size / 2);
+          ctx.lineTo(-p.size / 3, 0);
           ctx.closePath();
           ctx.fill();
         }
@@ -205,52 +267,76 @@ function Confetti({ active }: { active: boolean }) {
   return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-[60]" />;
 }
 
-// Ultra-realistic 3D Stone
-function Stone({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
-  const sizeMap = { sm: 'w-3 h-3', md: 'w-4 h-4', lg: 'w-6 h-6' };
+// Ultra-realistic 3D Stone with multiple layers
+function Stone({ size = 'md', variant = 0 }: { size?: 'sm' | 'md' | 'lg'; variant?: number }) {
+  const sizeMap = { sm: 'w-3.5 h-3.5', md: 'w-5 h-5', lg: 'w-7 h-7' };
+  const hueVariation = variant * 5;
+  
   return (
     <div className={`${sizeMap[size]} rounded-full relative`}>
-      {/* Base stone */}
-      <div className="absolute inset-0 rounded-full bg-gradient-to-br from-amber-200 via-amber-500 to-amber-900 shadow-lg" />
-      {/* Highlight */}
-      <div className="absolute inset-[6%] rounded-full bg-gradient-to-br from-white/60 via-amber-100/30 to-transparent" />
+      {/* Base stone with gradient */}
+      <div 
+        className="absolute inset-0 rounded-full shadow-lg"
+        style={{
+          background: `radial-gradient(circle at 35% 35%, 
+            hsl(${35 + hueVariation}, 80%, 65%) 0%, 
+            hsl(${30 + hueVariation}, 75%, 45%) 40%, 
+            hsl(${25 + hueVariation}, 70%, 25%) 100%)`,
+        }}
+      />
+      {/* Primary highlight */}
+      <div 
+        className="absolute inset-[5%] rounded-full"
+        style={{
+          background: `radial-gradient(circle at 30% 30%, 
+            rgba(255,255,255,0.7) 0%, 
+            rgba(255,255,255,0.2) 30%, 
+            transparent 60%)`,
+        }}
+      />
       {/* Secondary highlight */}
-      <div className="absolute top-[15%] left-[20%] w-[35%] h-[25%] rounded-full bg-white/40 blur-[1px]" />
+      <div className="absolute top-[12%] left-[18%] w-[40%] h-[30%] rounded-full bg-white/50 blur-[2px]" />
       {/* Shadow */}
-      <div className="absolute bottom-[10%] right-[15%] w-[30%] h-[30%] rounded-full bg-black/50 blur-[2px]" />
+      <div className="absolute bottom-[8%] right-[12%] w-[35%] h-[35%] rounded-full bg-black/60 blur-[3px]" />
       {/* Rim light */}
-      <div className="absolute inset-0 rounded-full ring-1 ring-amber-300/30" />
+      <div 
+        className="absolute inset-0 rounded-full"
+        style={{
+          boxShadow: `inset 0 0 0 1px hsla(${35 + hueVariation}, 60%, 70%, 0.3)`,
+        }}
+      />
     </div>
   );
 }
 
-// Realistic stone cluster
+// Realistic stone cluster with depth
 function StoneCluster({ count, highlight }: { count: number; highlight?: boolean }) {
   if (count === 0) return null;
 
   const positions = [
-    { x: 0, y: -5 }, { x: -7, y: 3 }, { x: 7, y: 3 },
-    { x: -4, y: -7 }, { x: 4, y: -7 }, { x: -9, y: -2 },
-    { x: 9, y: -2 }, { x: 0, y: 7 },
+    { x: 0, y: -6, z: 1 }, { x: -8, y: 3, z: 2 }, { x: 8, y: 3, z: 2 },
+    { x: -4, y: -8, z: 3 }, { x: 4, y: -8, z: 3 }, { x: -10, y: -2, z: 4 },
+    { x: 10, y: -2, z: 4 }, { x: 0, y: 8, z: 5 },
   ];
 
   const stonesToShow = Math.min(count, 8);
 
   return (
     <div className="absolute inset-0 flex items-center justify-center">
-      <div className="relative w-16 h-16">
+      <div className="relative w-20 h-20" style={{ perspective: '100px' }}>
         {positions.slice(0, stonesToShow).map((pos, i) => (
           <div
             key={i}
             className={`absolute transition-all duration-300 ${highlight ? 'animate-bounce-small' : ''}`}
             style={{
-              left: `calc(50% + ${pos.x}px - 6px)`,
-              top: `calc(50% + ${pos.y}px - 6px)`,
-              animationDelay: `${i * 25}ms`,
-              zIndex: i,
+              left: `calc(50% + ${pos.x}px - 7px)`,
+              top: `calc(50% + ${pos.y}px - 7px)`,
+              animationDelay: `${i * 20}ms`,
+              zIndex: pos.z,
+              transform: `translateZ(${pos.z * 2}px)`,
             }}
           >
-            <Stone size="sm" />
+            <Stone size="sm" variant={i} />
           </div>
         ))}
       </div>
@@ -284,6 +370,8 @@ export default function App() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [gameTime, setGameTime] = useState(0);
   const [showHint, setShowHint] = useState(false);
+  const [flyingStones, setFlyingStones] = useState<FlyingStone[]>([]);
+  const pitRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
 
   useEffect(() => {
     soundEngine.setEnabled(soundEnabled);
@@ -313,7 +401,8 @@ export default function App() {
           ...p,
           x: p.x + p.vx,
           y: p.y + p.vy,
-          vy: p.vy + 0.6,
+          vy: p.vy + 0.7,
+          vx: p.vx * 0.98,
           life: p.life - 1,
         }))
         .filter(p => p.life > 0)
@@ -322,7 +411,19 @@ export default function App() {
     return () => clearInterval(interval);
   }, [particles.length > 0]);
 
-  const createParticles = useCallback((x: number, y: number, color: string, count: number = 30) => {
+  useEffect(() => {
+    if (flyingStones.length === 0) return;
+    const interval = setInterval(() => {
+      setFlyingStones(prev => 
+        prev
+          .map(s => ({ ...s, progress: s.progress + 0.08 }))
+          .filter(s => s.progress < 1)
+      );
+    }, 16);
+    return () => clearInterval(interval);
+  }, [flyingStones.length > 0]);
+
+  const createParticles = useCallback((x: number, y: number, color: string, count: number = 40) => {
     const newParticles: Particle[] = [];
     const types: Array<'circle' | 'star' | 'spark'> = ['circle', 'star', 'spark'];
     for (let i = 0; i < count; i++) {
@@ -330,12 +431,12 @@ export default function App() {
         id: Date.now() + i,
         x,
         y,
-        vx: (Math.random() - 0.5) * 12,
-        vy: (Math.random() - 0.5) * 12 - 6,
-        life: 80,
-        maxLife: 80,
+        vx: (Math.random() - 0.5) * 15,
+        vy: (Math.random() - 0.5) * 15 - 8,
+        life: 100,
+        maxLife: 100,
         color,
-        size: Math.random() * 8 + 4,
+        size: Math.random() * 10 + 5,
         type: types[Math.floor(Math.random() * types.length)],
       });
     }
@@ -361,6 +462,7 @@ export default function App() {
     setParticles([]);
     setGameTime(0);
     setShowHint(false);
+    setFlyingStones([]);
   }, []);
 
   const animateSowing = useCallback((steps: SowingStep[], callback: () => void) => {
@@ -368,21 +470,38 @@ export default function App() {
     const animate = () => {
       if (i < steps.length) {
         const step = steps[i];
-        setBoard(step.boardAfter);
-        setLandingPit(step.pit);
-        soundEngine.playStoneDrop();
+        
+        // Create flying stone
+        setFlyingStones(prev => [...prev, {
+          id: Date.now() + i,
+          fromPit: sourcePit!,
+          toPit: step.pit,
+          progress: 0,
+          color: `hsl(${35 + Math.random() * 10}, 80%, 55%)`,
+        }]);
+        
+        setTimeout(() => {
+          setBoard(step.boardAfter);
+          setLandingPit(step.pit);
+          soundEngine.playStoneDrop();
+          
+          setTimeout(() => {
+            setLandingPit(null);
+          }, 100);
+        }, 60);
+        
         i++;
-        const delay = 50 + Math.random() * 15;
+        const delay = 40 + Math.random() * 10;
         setTimeout(animate, delay);
       } else {
         setTimeout(() => {
-          setLandingPit(null);
+          setFlyingStones([]);
           callback();
-        }, 80);
+        }, 100);
       }
     };
     animate();
-  }, []);
+  }, [sourcePit]);
 
   const executeMove = useCallback((pit: number, player: Player) => {
     setAnimating(true);
@@ -405,16 +524,16 @@ export default function App() {
           setLastCapture(true);
           soundEngine.playCapture();
           
-          const pitElement = document.querySelector(`[data-pit="${result.capturedPit}"]`);
+          const pitElement = pitRefs.current.get(result.capturedPit);
           if (pitElement) {
             const rect = pitElement.getBoundingClientRect();
-            createParticles(rect.left + rect.width / 2, rect.top + rect.height / 2, '#fbbf24', 40);
+            createParticles(rect.left + rect.width / 2, rect.top + rect.height / 2, '#fbbf24', 50);
           }
           
           setTimeout(() => {
             setCapturedPits(new Set());
             setLastCapture(false);
-          }, 800);
+          }, 1000);
         }
 
         if (result.extraTurn) {
@@ -436,17 +555,17 @@ export default function App() {
           soundEngine.playGameOver(w === 1);
           if (w === 1) {
             setShowConfetti(true);
-            setTimeout(() => setShowConfetti(false), 6000);
+            setTimeout(() => setShowConfetti(false), 7000);
             // Create celebration particles
-            for (let i = 0; i < 5; i++) {
+            for (let i = 0; i < 8; i++) {
               setTimeout(() => {
                 createParticles(
                   Math.random() * window.innerWidth,
-                  Math.random() * window.innerHeight * 0.5,
-                  ['#fbbf24', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'][i],
-                  50
+                  Math.random() * window.innerHeight * 0.6,
+                  ['#fbbf24', '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#f59e0b', '#10b981', '#8b5cf6'][i],
+                  60
                 );
-              }, i * 200);
+              }, i * 150);
             }
           }
           setMessage(w === 1 ? '🎉 おめでとうございます！あなたの勝ちです！' :
@@ -465,7 +584,7 @@ export default function App() {
         }
         setAnimating(false);
       });
-    }, 120);
+    }, 100);
   }, [board, animateSowing, createParticles]);
 
   const handlePlayerMove = useCallback((pit: number) => {
@@ -576,18 +695,19 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-stone-950 via-zinc-900 to-stone-950 flex flex-col items-center relative overflow-hidden select-none">
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-amber-500/[0.04] rounded-full blur-3xl animate-pulse-slow" />
-        <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-amber-600/[0.04] rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '2s' }} />
+        <div className="absolute top-0 left-1/4 w-[700px] h-[700px] bg-amber-500/[0.05] rounded-full blur-3xl animate-pulse-slow" />
+        <div className="absolute bottom-0 right-1/4 w-[700px] h-[700px] bg-amber-600/[0.05] rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '2s' }} />
       </div>
 
       <ParticleSystem particles={particles} />
+      <FlyingStones stones={flyingStones} pitRefs={pitRefs} />
       <Confetti active={showConfetti} />
 
       {/* Header */}
       <div className="relative z-10 w-full max-w-5xl px-4 pt-4 pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-700 flex items-center justify-center shadow-xl shadow-amber-500/30 transform hover:scale-110 transition-transform">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-700 flex items-center justify-center shadow-xl shadow-amber-500/30 transform hover:scale-110 transition-transform duration-300">
               <span className="text-2xl">🏺</span>
             </div>
             <div>
@@ -596,12 +716,12 @@ export default function App() {
             </div>
           </div>
           <div className="flex gap-1.5 items-center">
-            <div className="text-sm text-amber-400/50 font-mono mr-2 bg-white/5 px-3 py-1 rounded-lg">
+            <div className="text-sm text-amber-400/60 font-mono mr-2 bg-white/5 px-3 py-1.5 rounded-lg backdrop-blur-sm">
               ⏱️ {formatTime(gameTime)}
             </div>
             <button
               onClick={() => setShowRules(!showRules)}
-              className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 text-amber-200/60 hover:text-amber-200 transition-all flex items-center justify-center text-sm font-bold"
+              className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 text-amber-200/60 hover:text-amber-200 transition-all flex items-center justify-center text-sm font-bold backdrop-blur-sm"
               title="ルール"
             >
               ?
@@ -609,20 +729,20 @@ export default function App() {
             <button
               onClick={handleShowHint}
               disabled={currentPlayer !== 1 || gameOver || aiThinking || animating}
-              className="w-9 h-9 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-200/60 hover:text-amber-200 transition-all flex items-center justify-center text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+              className="w-9 h-9 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-200/60 hover:text-amber-200 transition-all flex items-center justify-center text-sm disabled:opacity-30 disabled:cursor-not-allowed backdrop-blur-sm"
               title="ヒント (H)"
             >
               💡
             </button>
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
-              className={`w-9 h-9 rounded-lg transition-all flex items-center justify-center text-sm ${soundEnabled ? 'bg-white/5 text-amber-200/60 hover:bg-white/10' : 'bg-white/5 text-amber-200/30 hover:bg-white/10'}`}
+              className={`w-9 h-9 rounded-lg transition-all flex items-center justify-center text-sm backdrop-blur-sm ${soundEnabled ? 'bg-white/5 text-amber-200/60 hover:bg-white/10' : 'bg-white/5 text-amber-200/30 hover:bg-white/10'}`}
             >
               {soundEnabled ? '🔊' : '🔇'}
             </button>
             <button
               onClick={resetGame}
-              className="h-9 px-4 rounded-lg bg-gradient-to-r from-amber-500/20 to-amber-600/20 hover:from-amber-500/30 hover:to-amber-600/30 text-amber-200 text-xs font-bold transition-all border border-amber-500/20"
+              className="h-9 px-4 rounded-lg bg-gradient-to-r from-amber-500/20 to-amber-600/20 hover:from-amber-500/30 hover:to-amber-600/30 text-amber-200 text-xs font-bold transition-all border border-amber-500/20 backdrop-blur-sm"
             >
               🔄 新規
             </button>
@@ -632,7 +752,7 @@ export default function App() {
 
       {showRules && (
         <div className="relative z-10 w-full max-w-5xl px-4 mb-2 animate-fade-in">
-          <div className="bg-white/[0.03] backdrop-blur rounded-xl p-4 border border-white/10">
+          <div className="bg-white/[0.03] backdrop-blur-md rounded-xl p-4 border border-white/10">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
               {[
                 { icon: '🎯', text: '自分の穴を選んで石を反時計回りに配る' },
@@ -653,14 +773,14 @@ export default function App() {
       {/* Score Display */}
       <div className="relative z-10 w-full max-w-5xl px-4 mb-2">
         <div className="flex items-center gap-3">
-          <div className={`flex-1 rounded-xl p-3 transition-all duration-500 ${
+          <div className={`flex-1 rounded-xl p-3 transition-all duration-500 backdrop-blur-sm ${
             currentPlayer === 1 && !gameOver
-              ? 'bg-gradient-to-br from-green-500/15 to-green-600/10 border border-green-500/30 shadow-lg shadow-green-500/10'
+              ? 'bg-gradient-to-br from-green-500/20 to-green-600/15 border border-green-500/40 shadow-lg shadow-green-500/15'
               : 'bg-white/[0.03] border border-white/10'
           }`}>
             <div className="flex items-center gap-2">
               <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg transition-all ${
-                currentPlayer === 1 && !gameOver ? 'bg-green-500/20 ring-2 ring-green-400/40' : 'bg-white/10'
+                currentPlayer === 1 && !gameOver ? 'bg-green-500/25 ring-2 ring-green-400/50' : 'bg-white/10'
               }`}>
                 👤
               </div>
@@ -677,9 +797,9 @@ export default function App() {
 
           <div className="text-amber-600/30 text-sm font-black">VS</div>
 
-          <div className={`flex-1 rounded-xl p-3 transition-all duration-500 ${
+          <div className={`flex-1 rounded-xl p-3 transition-all duration-500 backdrop-blur-sm ${
             currentPlayer === 2 && !gameOver
-              ? 'bg-gradient-to-br from-blue-500/15 to-blue-600/10 border border-blue-500/30 shadow-lg shadow-blue-500/10'
+              ? 'bg-gradient-to-br from-blue-500/20 to-blue-600/15 border border-blue-500/40 shadow-lg shadow-blue-500/15'
               : 'bg-white/[0.03] border border-white/10'
           }`}>
             <div className="flex items-center gap-2">
@@ -692,7 +812,7 @@ export default function App() {
                 <div className="text-sm text-amber-300/50 font-bold">{Math.round((board[13] / totalStones) * 100)}%</div>
               </div>
               <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg transition-all ${
-                currentPlayer === 2 && !gameOver ? 'bg-blue-500/20 ring-2 ring-blue-400/40' : 'bg-white/10'
+                currentPlayer === 2 && !gameOver ? 'bg-blue-500/25 ring-2 ring-blue-400/50' : 'bg-white/10'
               }`}>
                 🤖
               </div>
@@ -703,17 +823,17 @@ export default function App() {
 
       {/* Message Bar */}
       <div className="relative z-10 w-full max-w-5xl px-4 mb-3">
-        <div className={`rounded-xl px-4 py-2.5 text-center text-sm font-medium transition-all duration-300 ${
+        <div className={`rounded-xl px-4 py-2.5 text-center text-sm font-medium transition-all duration-300 backdrop-blur-sm ${
           gameOver
-            ? winner === 1 ? 'bg-gradient-to-r from-green-500/15 to-green-600/10 text-green-300 border border-green-500/30' :
-              winner === 2 ? 'bg-gradient-to-r from-red-500/15 to-red-600/10 text-red-300 border border-red-500/30' :
-              'bg-gradient-to-r from-yellow-500/15 to-yellow-600/10 text-yellow-300 border border-yellow-500/30'
+            ? winner === 1 ? 'bg-gradient-to-r from-green-500/20 to-green-600/15 text-green-300 border border-green-500/40' :
+              winner === 2 ? 'bg-gradient-to-r from-red-500/20 to-red-600/15 text-red-300 border border-red-500/40' :
+              'bg-gradient-to-r from-yellow-500/20 to-yellow-600/15 text-yellow-300 border border-yellow-500/40'
             : lastCapture
-            ? 'bg-gradient-to-r from-yellow-500/15 to-yellow-600/10 text-yellow-300 border border-yellow-500/30 animate-pulse'
+            ? 'bg-gradient-to-r from-yellow-500/20 to-yellow-600/15 text-yellow-300 border border-yellow-500/40 animate-pulse'
             : showHint
-            ? 'bg-gradient-to-r from-purple-500/15 to-purple-600/10 text-purple-300 border border-purple-500/30'
+            ? 'bg-gradient-to-r from-purple-500/20 to-purple-600/15 text-purple-300 border border-purple-500/40'
             : aiThinking
-            ? 'bg-gradient-to-r from-blue-500/15 to-blue-600/10 text-blue-300 border border-blue-500/30'
+            ? 'bg-gradient-to-r from-blue-500/20 to-blue-600/15 text-blue-300 border border-blue-500/40'
             : 'bg-white/[0.03] text-amber-200/70 border border-white/10'
         }`}>
           {showHint && hintPit !== null ? (
@@ -729,17 +849,17 @@ export default function App() {
         <div className="relative rounded-2xl md:rounded-[2rem] overflow-hidden shadow-2xl transform transition-transform duration-500 hover:scale-[1.005]" style={{
           perspective: '1000px',
         }}>
-          <div className="absolute inset-0 bg-gradient-to-b from-amber-700/80 via-amber-800/80 to-amber-900/80 rounded-2xl md:rounded-[2rem]" />
-          <div className="absolute inset-0 rounded-2xl md:rounded-[2rem] opacity-[0.08] pointer-events-none" style={{
+          <div className="absolute inset-0 bg-gradient-to-b from-amber-700/85 via-amber-800/85 to-amber-900/85 rounded-2xl md:rounded-[2rem]" />
+          <div className="absolute inset-0 rounded-2xl md:rounded-[2rem] opacity-[0.1] pointer-events-none" style={{
             backgroundImage: `
-              repeating-linear-gradient(87deg, transparent, transparent 12px, rgba(80,40,10,0.6) 12px, rgba(80,40,10,0.6) 13px),
-              repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(100,50,10,0.4) 20px, rgba(100,50,10,0.4) 21px),
-              repeating-linear-gradient(85deg, transparent, transparent 35px, rgba(60,30,10,0.3) 35px, rgba(60,30,10,0.3) 36px)
+              repeating-linear-gradient(87deg, transparent, transparent 10px, rgba(80,40,10,0.7) 10px, rgba(80,40,10,0.7) 11px),
+              repeating-linear-gradient(90deg, transparent, transparent 18px, rgba(100,50,10,0.5) 18px, rgba(100,50,10,0.5) 19px),
+              repeating-linear-gradient(85deg, transparent, transparent 30px, rgba(60,30,10,0.4) 30px, rgba(60,30,10,0.4) 31px)
             `,
           }} />
-          <div className="absolute inset-0 rounded-2xl md:rounded-[2rem] bg-[radial-gradient(ellipse_at_center,_rgba(251,191,36,0.05)_0%,_transparent_70%)]" />
-          <div className="absolute top-0 left-[5%] right-[5%] h-px bg-gradient-to-r from-transparent via-amber-300/20 to-transparent" />
-          <div className="absolute inset-0 rounded-2xl md:rounded-[2rem] shadow-[inset_0_2px_30px_rgba(0,0,0,0.5)]" />
+          <div className="absolute inset-0 rounded-2xl md:rounded-[2rem] bg-[radial-gradient(ellipse_at_center,_rgba(251,191,36,0.06)_0%,_transparent_70%)]" />
+          <div className="absolute top-0 left-[5%] right-[5%] h-px bg-gradient-to-r from-transparent via-amber-300/25 to-transparent" />
+          <div className="absolute inset-0 rounded-2xl md:rounded-[2rem] shadow-[inset_0_2px_30px_rgba(0,0,0,0.6)]" />
 
           <div className="relative p-3 md:p-6">
             <div className="flex items-stretch gap-1.5 md:gap-3">
@@ -748,10 +868,10 @@ export default function App() {
               <div className="flex-1 flex flex-col gap-1.5 md:gap-3">
                 {!gameOver && !animating && (
                   <div className="flex items-center justify-center h-1">
-                    <div className={`h-0.5 w-20 rounded-full transition-all duration-500 ${
+                    <div className={`h-0.5 w-24 rounded-full transition-all duration-500 ${
                       currentPlayer === 1
-                        ? 'bg-gradient-to-r from-transparent via-green-400/50 to-transparent'
-                        : 'bg-gradient-to-r from-transparent via-blue-400/50 to-transparent'
+                        ? 'bg-gradient-to-r from-transparent via-green-400/60 to-transparent'
+                        : 'bg-gradient-to-r from-transparent via-blue-400/60 to-transparent'
                     }`} />
                   </div>
                 )}
@@ -773,12 +893,13 @@ export default function App() {
                       onClick={() => currentPlayer === 2 && !gameOver && handlePlayerMove(pit)}
                       color="blue"
                       playerSide={2}
+                      pitRef={pitRefs}
                     />
                   ))}
                 </div>
 
                 <div className="flex items-center justify-center h-0.5">
-                  <div className="h-px w-full bg-gradient-to-r from-transparent via-amber-600/20 to-transparent" />
+                  <div className="h-px w-full bg-gradient-to-r from-transparent via-amber-600/25 to-transparent" />
                 </div>
 
                 <div className="grid grid-cols-6 gap-1 md:gap-2">
@@ -800,6 +921,7 @@ export default function App() {
                         onClick={() => handlePlayerMove(pit)}
                         color="green"
                         playerSide={1}
+                        pitRef={pitRefs}
                       />
                     );
                   })}
@@ -814,12 +936,12 @@ export default function App() {
 
       {showAiHint && aiInfo && aiInfo.allScores.length > 0 && (
         <div className="relative z-10 w-full max-w-5xl px-4 mt-3 animate-fade-in">
-          <div className="bg-blue-950/30 backdrop-blur rounded-xl p-3 border border-blue-800/20">
-            <div className="text-[10px] text-blue-400/50 mb-1.5 font-semibold tracking-wider">🧠 AI EVALUATION</div>
+          <div className="bg-blue-950/40 backdrop-blur-md rounded-xl p-3 border border-blue-800/25">
+            <div className="text-[10px] text-blue-400/60 mb-1.5 font-semibold tracking-wider">🧠 AI EVALUATION</div>
             <div className="flex gap-1.5 flex-wrap">
               {aiInfo.allScores.sort((a, b) => b.score - a.score).map(({ move, score }, idx) => (
-                <div key={move} className={`px-2 py-1 rounded-md text-xs flex items-center gap-1 ${
-                  idx === 0 ? 'bg-blue-500/20 text-blue-200 font-bold ring-1 ring-blue-500/30' : 'bg-white/[0.03] text-amber-300/40'
+                <div key={move} className={`px-2 py-1 rounded-md text-xs flex items-center gap-1 backdrop-blur-sm ${
+                  idx === 0 ? 'bg-blue-500/25 text-blue-200 font-bold ring-1 ring-blue-500/40' : 'bg-white/[0.03] text-amber-300/40'
                 }`}>
                   <span className="text-[10px] opacity-50">#{idx + 1}</span>
                   <span>穴{move + 1}</span>
@@ -835,12 +957,12 @@ export default function App() {
 
       {!gameOver && (
         <div className="relative z-10 w-full max-w-5xl px-4 mt-3">
-          <div className="bg-white/[0.03] rounded-lg p-2 border border-white/[0.05]">
+          <div className="bg-white/[0.03] backdrop-blur-sm rounded-lg p-2 border border-white/[0.05]">
             <div className="flex items-center gap-2 text-[10px] text-amber-400/40">
               <span>進行度</span>
               <div className="flex-1 h-1.5 bg-stone-800/50 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-amber-500/50 to-amber-400/50 transition-all duration-500"
+                  className="h-full bg-gradient-to-r from-amber-500/60 to-amber-400/60 transition-all duration-500"
                   style={{ width: `${Math.min(100, (stats.moveCount / 20) * 100)}%` }}
                 />
               </div>
@@ -858,16 +980,16 @@ export default function App() {
         )}
         
         <div className="flex gap-2 justify-center flex-wrap">
-          <div className="bg-white/[0.03] px-3 py-1.5 rounded-lg text-[10px] text-amber-300/40 border border-white/[0.05]">
+          <div className="bg-white/[0.03] backdrop-blur-sm px-3 py-1.5 rounded-lg text-[10px] text-amber-300/40 border border-white/[0.05]">
             🎯 手数 <span className="text-amber-200/80 font-bold">{stats.moveCount}</span>
           </div>
-          <div className="bg-white/[0.03] px-3 py-1.5 rounded-lg text-[10px] text-amber-300/40 border border-white/[0.05]">
+          <div className="bg-white/[0.03] backdrop-blur-sm px-3 py-1.5 rounded-lg text-[10px] text-amber-300/40 border border-white/[0.05]">
             💎 <span className="text-yellow-300/80 font-bold">{stats.captures}</span>
           </div>
-          <div className="bg-white/[0.03] px-3 py-1.5 rounded-lg text-[10px] text-amber-300/40 border border-white/[0.05]">
+          <div className="bg-white/[0.03] backdrop-blur-sm px-3 py-1.5 rounded-lg text-[10px] text-amber-300/40 border border-white/[0.05]">
             ✨ <span className="text-green-300/80 font-bold">{stats.extraTurns}</span>
           </div>
-          <div className="bg-white/[0.03] px-3 py-1.5 rounded-lg text-[10px] text-amber-300/40 border border-white/[0.05]">
+          <div className="bg-white/[0.03] backdrop-blur-sm px-3 py-1.5 rounded-lg text-[10px] text-amber-300/40 border border-white/[0.05]">
             🏆 <span className="text-green-300/80 font-bold">{stats.wins}</span>
             <span className="text-amber-400/30 mx-0.5">/</span>
             <span className="text-red-300/80 font-bold">{stats.losses}</span>
@@ -876,22 +998,22 @@ export default function App() {
           </div>
           <button
             onClick={() => setShowAiHint(!showAiHint)}
-            className={`px-3 py-1.5 rounded-lg text-[10px] border transition-all ${
-              showAiHint ? 'bg-blue-500/15 text-blue-300/80 border-blue-500/30' : 'bg-white/[0.03] text-amber-300/40 border-white/[0.05] hover:bg-white/[0.05]'
+            className={`px-3 py-1.5 backdrop-blur-sm rounded-lg text-[10px] border transition-all ${
+              showAiHint ? 'bg-blue-500/20 text-blue-300/80 border-blue-500/40' : 'bg-white/[0.03] text-amber-300/40 border-white/[0.05] hover:bg-white/[0.05]'
             }`}
           >
             🧠 AI解析
           </button>
-          <div className="bg-white/[0.03] px-3 py-1.5 rounded-lg text-[10px] text-amber-300/40 border border-white/[0.05]">
+          <div className="bg-white/[0.03] backdrop-blur-sm px-3 py-1.5 rounded-lg text-[10px] text-amber-300/40 border border-white/[0.05]">
             {difficulty === 'easy' ? '🌱' : difficulty === 'medium' ? '🌿' : '🌳'} {difficulty === 'easy' ? '簡単' : difficulty === 'medium' ? '普通' : '難しい'}
           </div>
         </div>
       </div>
 
       {gameOver && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fade-in">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-lg flex items-center justify-center z-50 p-4 animate-fade-in">
           <div className="relative bg-gradient-to-b from-stone-800/95 to-stone-900/95 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl border border-white/10 animate-scale-in overflow-hidden">
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(251,191,36,0.08)_0%,_transparent_60%)] pointer-events-none" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(251,191,36,0.1)_0%,_transparent_60%)] pointer-events-none" />
 
             <div className="relative">
               <div className="text-7xl mb-3">
@@ -905,22 +1027,22 @@ export default function App() {
               </p>
 
               <div className="flex justify-center gap-4 mb-5">
-                <div className={`text-center rounded-xl p-4 min-w-[100px] ${
-                  winner === 1 ? 'bg-green-500/15 border border-green-500/20' : 'bg-white/[0.03] border border-white/[0.05]'
+                <div className={`text-center rounded-xl p-4 min-w-[100px] backdrop-blur-sm ${
+                  winner === 1 ? 'bg-green-500/20 border border-green-500/30' : 'bg-white/[0.03] border border-white/[0.05]'
                 }`}>
                   <div className={`text-4xl font-black ${winner === 1 ? 'text-green-400' : 'text-amber-200/60'}`}>{board[6]}</div>
                   <div className="text-[10px] text-amber-300/40 mt-1">YOU 👤</div>
                 </div>
                 <div className="text-amber-600/20 text-2xl font-bold self-center">VS</div>
-                <div className={`text-center rounded-xl p-4 min-w-[100px] ${
-                  winner === 2 ? 'bg-blue-500/15 border border-blue-500/20' : 'bg-white/[0.03] border border-white/[0.05]'
+                <div className={`text-center rounded-xl p-4 min-w-[100px] backdrop-blur-sm ${
+                  winner === 2 ? 'bg-blue-500/20 border border-blue-500/30' : 'bg-white/[0.03] border border-white/[0.05]'
                 }`}>
                   <div className={`text-4xl font-black ${winner === 2 ? 'text-blue-400' : 'text-amber-200/60'}`}>{board[13]}</div>
                   <div className="text-[10px] text-amber-300/40 mt-1">AI 🤖</div>
                 </div>
               </div>
 
-              <div className="bg-white/[0.03] rounded-xl p-3 mb-5 border border-white/[0.05]">
+              <div className="bg-white/[0.03] backdrop-blur-sm rounded-xl p-3 mb-5 border border-white/[0.05]">
                 <div className="text-[10px] text-amber-400/40 mb-2 font-semibold">📊 ゲーム統計</div>
                 <div className="grid grid-cols-3 gap-2 text-xs">
                   <div>
@@ -968,7 +1090,7 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => { setGameStarted(false); setGameOver(false); }}
-                  className="flex-1 bg-white/[0.05] text-amber-200/60 py-3 rounded-xl font-bold text-sm hover:bg-white/[0.08] transition-all border border-white/[0.08]"
+                  className="flex-1 bg-white/[0.05] backdrop-blur-sm text-amber-200/60 py-3 rounded-xl font-bold text-sm hover:bg-white/[0.08] transition-all border border-white/[0.08]"
                 >
                   設定 ⚙️
                 </button>
@@ -990,16 +1112,16 @@ export default function App() {
 function StorePit({ count, label, active, color }: { count: number; label: string; active: boolean; color: 'green' | 'blue' }) {
   const colorMap = {
     green: {
-      active: 'from-green-900/50 to-green-950/70 border-green-400/40',
-      inactive: 'from-stone-900/60 to-stone-950/80 border-amber-800/20',
+      active: 'from-green-900/60 to-green-950/80 border-green-400/50',
+      inactive: 'from-stone-900/70 to-stone-950/90 border-amber-800/25',
       text: 'text-green-400',
-      label: 'text-green-400/40',
+      label: 'text-green-400/50',
     },
     blue: {
-      active: 'from-blue-900/50 to-blue-950/70 border-blue-400/40',
-      inactive: 'from-stone-900/60 to-stone-950/80 border-amber-800/20',
+      active: 'from-blue-900/60 to-blue-950/80 border-blue-400/50',
+      inactive: 'from-stone-900/70 to-stone-950/90 border-amber-800/25',
       text: 'text-blue-400',
-      label: 'text-blue-400/40',
+      label: 'text-blue-400/50',
     },
   };
   const c = colorMap[color];
@@ -1010,13 +1132,13 @@ function StorePit({ count, label, active, color }: { count: number; label: strin
         active ? `${c.active} shadow-xl` : c.inactive
       }`} style={{
         boxShadow: active
-          ? `inset 0 4px 20px rgba(0,0,0,0.6), 0 0 30px ${color === 'green' ? 'rgba(74,222,128,0.15)' : 'rgba(96,165,250,0.15)'}`
-          : 'inset 0 4px 20px rgba(0,0,0,0.6)',
+          ? `inset 0 4px 20px rgba(0,0,0,0.7), 0 0 40px ${color === 'green' ? 'rgba(74,222,128,0.2)' : 'rgba(96,165,250,0.2)'}`
+          : 'inset 0 4px 20px rgba(0,0,0,0.7)',
       }}>
-        <div className="absolute inset-2 md:inset-3 rounded-[45%] bg-black/30" style={{
-          boxShadow: 'inset 0 6px 20px rgba(0,0,0,0.5)',
+        <div className="absolute inset-2 md:inset-3 rounded-[45%] bg-black/40" style={{
+          boxShadow: 'inset 0 6px 20px rgba(0,0,0,0.6)',
         }} />
-        <div className="absolute inset-[10%] rounded-[45%] bg-gradient-to-b from-white/[0.05] to-transparent" />
+        <div className="absolute inset-[10%] rounded-[45%] bg-gradient-to-b from-white/[0.06] to-transparent" />
 
         <div className="relative z-10 flex flex-col items-center gap-1">
           {count > 0 && count <= 20 && (
@@ -1026,8 +1148,8 @@ function StorePit({ count, label, active, color }: { count: number; label: strin
                   key={i}
                   className="w-[5px] h-[5px] md:w-[6px] md:h-[6px] rounded-full"
                   style={{
-                    background: `radial-gradient(circle at 30% 30%, hsl(35, 80%, 60%), hsl(30, 70%, 25%))`,
-                    boxShadow: 'inset 0 -1px 2px rgba(0,0,0,0.4)',
+                    background: `radial-gradient(circle at 30% 30%, hsl(${35 + i * 2}, 85%, 65%), hsl(${30 + i * 2}, 75%, 25%))`,
+                    boxShadow: 'inset 0 -1px 2px rgba(0,0,0,0.5)',
                   }}
                 />
               ))}
@@ -1040,14 +1162,14 @@ function StorePit({ count, label, active, color }: { count: number; label: strin
         </div>
 
         {active && (
-          <div className={`absolute -inset-1 md:-inset-1.5 rounded-[45%] border ${color === 'green' ? 'border-green-400/20' : 'border-blue-400/20'} animate-pulse`} />
+          <div className={`absolute -inset-1 md:-inset-1.5 rounded-[45%] border ${color === 'green' ? 'border-green-400/25' : 'border-blue-400/25'} animate-pulse`} />
         )}
       </div>
     </div>
   );
 }
 
-function PitCell({ pit, count, isValid, isSource, isLanding, isCaptured, isPreview, isHovered, isHint, onHover, onClick, color, playerSide }: {
+function PitCell({ pit, count, isValid, isSource, isLanding, isCaptured, isPreview, isHovered, isHint, onHover, onClick, color, playerSide, pitRef }: {
   pit: number;
   count: number;
   isValid: boolean;
@@ -1061,24 +1183,36 @@ function PitCell({ pit, count, isValid, isSource, isLanding, isCaptured, isPrevi
   onClick: () => void;
   color: 'green' | 'blue';
   playerSide: Player;
+  pitRef: React.MutableRefObject<Map<number, HTMLButtonElement>>;
 }) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (buttonRef.current) {
+      pitRef.current.set(pit, buttonRef.current);
+    }
+    return () => {
+      pitRef.current.delete(pit);
+    };
+  }, [pit, pitRef]);
+
   const colorClasses = {
     green: {
-      valid: 'border-green-400/60 shadow-green-500/20',
-      source: 'border-green-500/20',
-      landing: 'border-green-400/40',
-      captured: 'border-yellow-400/60 shadow-yellow-500/30',
-      hint: 'border-purple-400/70 shadow-purple-500/40',
-      default: 'border-amber-900/15',
+      valid: 'border-green-400/70 shadow-green-500/25',
+      source: 'border-green-500/25',
+      landing: 'border-green-400/50',
+      captured: 'border-yellow-400/70 shadow-yellow-500/35',
+      hint: 'border-purple-400/80 shadow-purple-500/50',
+      default: 'border-amber-900/20',
       countText: 'text-green-300',
     },
     blue: {
-      valid: 'border-blue-400/60 shadow-blue-500/20',
-      source: 'border-blue-500/20',
-      landing: 'border-blue-400/40',
-      captured: 'border-yellow-400/60 shadow-yellow-500/30',
-      hint: 'border-purple-400/70 shadow-purple-500/40',
-      default: 'border-amber-900/15',
+      valid: 'border-blue-400/70 shadow-blue-500/25',
+      source: 'border-blue-500/25',
+      landing: 'border-blue-400/50',
+      captured: 'border-yellow-400/70 shadow-yellow-500/35',
+      hint: 'border-purple-400/80 shadow-purple-500/50',
+      default: 'border-amber-900/20',
       countText: 'text-blue-300',
     },
   };
@@ -1093,6 +1227,7 @@ function PitCell({ pit, count, isValid, isSource, isLanding, isCaptured, isPrevi
 
   return (
     <button
+      ref={buttonRef}
       onClick={onClick}
       onMouseEnter={() => isValid && onHover(pit)}
       onMouseLeave={() => onHover(null)}
@@ -1105,30 +1240,30 @@ function PitCell({ pit, count, isValid, isSource, isLanding, isCaptured, isPrevi
         isValid ? `cursor-pointer hover:scale-110 shadow-lg active:scale-95 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 ${color === 'green' ? 'focus:ring-green-400' : 'focus:ring-blue-400'}` : 'opacity-50'
       } ${isCaptured ? 'animate-capture-flash' : ''} ${isHint ? 'animate-pulse' : ''}`}
     >
-      <div className="absolute inset-[2px] rounded-full bg-gradient-to-b from-stone-900/70 to-stone-950/90" style={{
-        boxShadow: 'inset 0 4px 12px rgba(0,0,0,0.6), inset 0 -1px 3px rgba(255,255,255,0.03)',
+      <div className="absolute inset-[2px] rounded-full bg-gradient-to-b from-stone-900/80 to-stone-950/95" style={{
+        boxShadow: 'inset 0 4px 12px rgba(0,0,0,0.7), inset 0 -1px 3px rgba(255,255,255,0.04)',
       }} />
 
-      <div className="absolute inset-[10%] rounded-full bg-gradient-to-b from-white/[0.03] to-transparent pointer-events-none" />
+      <div className="absolute inset-[10%] rounded-full bg-gradient-to-b from-white/[0.04] to-transparent pointer-events-none" />
 
       {isValid && !isHint && (
         <>
           <div className={`absolute inset-0 rounded-full animate-pulse-subtle ${
-            color === 'green' ? 'bg-green-400/[0.08]' : 'bg-blue-400/[0.08]'
+            color === 'green' ? 'bg-green-400/[0.1]' : 'bg-blue-400/[0.1]'
           }`} />
           <div className={`absolute -inset-0.5 rounded-full ${
-            color === 'green' ? 'bg-green-400/15' : 'bg-blue-400/15'
+            color === 'green' ? 'bg-green-400/20' : 'bg-blue-400/20'
           } blur-sm`} />
         </>
       )}
 
       {isHint && (
-        <div className="absolute inset-0 rounded-full bg-purple-400/15 animate-pulse" />
+        <div className="absolute inset-0 rounded-full bg-purple-400/20 animate-pulse" />
       )}
 
       {isLanding && (
         <div className={`absolute inset-0 rounded-full ${
-          color === 'green' ? 'bg-green-400/15' : 'bg-blue-400/15'
+          color === 'green' ? 'bg-green-400/20' : 'bg-blue-400/20'
         } animate-ping-slow`} />
       )}
 
@@ -1141,18 +1276,18 @@ function PitCell({ pit, count, isValid, isSource, isLanding, isCaptured, isPrevi
       )}
 
       {isSource && count === 0 && (
-        <div className="absolute inset-[20%] rounded-full border border-dashed border-amber-600/30 animate-pulse" />
+        <div className="absolute inset-[20%] rounded-full border border-dashed border-amber-600/40 animate-pulse" />
       )}
 
       {isPreview && !isValid && !isHint && (
         <div className={`absolute inset-0 rounded-full ${
-          color === 'green' ? 'bg-green-400/15' : 'bg-blue-400/15'
+          color === 'green' ? 'bg-green-400/20' : 'bg-blue-400/20'
         } animate-pulse`} />
       )}
 
       {isHovered && isValid && count > 0 && (
-        <div className="absolute -top-9 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-          <div className="bg-stone-900/95 text-amber-200 text-xs px-3 py-1.5 rounded-lg shadow-xl border border-amber-700/30 whitespace-nowrap">
+        <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+          <div className="bg-stone-900/95 text-amber-200 text-xs px-3 py-1.5 rounded-lg shadow-xl border border-amber-700/40 whitespace-nowrap backdrop-blur-sm">
             {count}石を配る
           </div>
         </div>
