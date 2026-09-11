@@ -13,8 +13,8 @@ export const PITS_PER_SIDE = 6;
 
 export function createInitialBoard(): Board {
   const board: Board = new Array(14).fill(INITIAL_STONES);
-  board[6] = 0;  // Player 1's store
-  board[13] = 0; // Player 2's store
+  board[6] = 0;
+  board[13] = 0;
   return board;
 }
 
@@ -32,7 +32,6 @@ export function getOpponent(player: Player): Player {
 }
 
 export function getOppositePit(pit: number): number {
-  // The opposite pit of pit i is (12 - i)
   return 12 - pit;
 }
 
@@ -46,30 +45,39 @@ export function getValidMoves(board: Board, player: Player): number[] {
   return getPlayerPits(player).filter(pit => board[pit] > 0);
 }
 
-export function makeMove(board: Board, pit: number, player: Player): { newBoard: Board; extraTurn: boolean } {
+export interface MoveResult {
+  newBoard: Board;
+  extraTurn: boolean;
+  captured: boolean;
+  capturedPit: number | null;
+  sowingPath: number[];
+}
+
+export function makeMove(board: Board, pit: number, player: Player): MoveResult {
   const newBoard = [...board];
   let stones = newBoard[pit];
   newBoard[pit] = 0;
   let currentIndex = pit;
   let extraTurn = false;
+  let captured = false;
+  let capturedPit: number | null = null;
+  const sowingPath: number[] = [];
 
   while (stones > 0) {
     currentIndex = (currentIndex + 1) % 14;
-    // Skip opponent's store
     if (player === 1 && currentIndex === 13) continue;
     if (player === 2 && currentIndex === 6) continue;
 
     newBoard[currentIndex]++;
+    sowingPath.push(currentIndex);
     stones--;
   }
 
-  // Check if last stone landed in player's own store -> extra turn
   const playerStore = getPlayerStore(player);
   if (currentIndex === playerStore) {
     extraTurn = true;
   }
 
-  // Check capture: last stone landed in empty pit on player's side
   const playerPits = getPlayerPits(player);
   if (playerPits.includes(currentIndex) && newBoard[currentIndex] === 1) {
     const oppositePit = getOppositePit(currentIndex);
@@ -77,19 +85,19 @@ export function makeMove(board: Board, pit: number, player: Player): { newBoard:
       newBoard[playerStore] += newBoard[oppositePit] + 1;
       newBoard[oppositePit] = 0;
       newBoard[currentIndex] = 0;
+      captured = true;
+      capturedPit = oppositePit;
     }
   }
 
-  return { newBoard, extraTurn };
+  return { newBoard, extraTurn, captured, capturedPit, sowingPath };
 }
 
 export function isGameOver(board: Board): boolean {
   const p1Pits = getPlayerPits(1);
   const p2Pits = getPlayerPits(2);
-
   const p1Empty = p1Pits.every(pit => board[pit] === 0);
   const p2Empty = p2Pits.every(pit => board[pit] === 0);
-
   return p1Empty || p2Empty;
 }
 
@@ -98,7 +106,6 @@ export function getFinalBoard(board: Board): Board {
   const p1Pits = getPlayerPits(1);
   const p2Pits = getPlayerPits(2);
 
-  // Collect remaining stones
   let p1Remaining = 0;
   let p2Remaining = 0;
 
@@ -121,14 +128,22 @@ export function getFinalBoard(board: Board): Board {
 export function getWinner(board: Board): Player | 0 {
   if (board[6] > board[13]) return 1;
   if (board[13] > board[6]) return 2;
-  return 0; // draw
+  return 0;
 }
 
 // AI - Minimax with Alpha-Beta Pruning
 function evaluateBoard(board: Board, aiPlayer: Player): number {
   const aiStore = getPlayerStore(aiPlayer);
   const opponentStore = getPlayerStore(getOpponent(aiPlayer));
-  return board[aiStore] - board[opponentStore];
+  const diff = board[aiStore] - board[opponentStore];
+  
+  // Bonus for having more stones on own side
+  const aiPits = getPlayerPits(aiPlayer);
+  const oppPits = getPlayerPits(getOpponent(aiPlayer));
+  const aiPitStones = aiPits.reduce((s, p) => s + board[p], 0);
+  const oppPitStones = oppPits.reduce((s, p) => s + board[p], 0);
+  
+  return diff * 2 + (aiPitStones - oppPitStones) * 0.3;
 }
 
 function minimax(
@@ -154,7 +169,7 @@ function minimax(
       const { newBoard, extraTurn } = makeMove(board, move, currentPlayer);
       let evalScore: number;
       if (extraTurn) {
-        evalScore = minimax(newBoard, depth - 1, alpha, beta, true, currentPlayer, aiPlayer);
+        evalScore = minimax(newBoard, depth, alpha, beta, true, currentPlayer, aiPlayer);
       } else {
         evalScore = minimax(newBoard, depth - 1, alpha, beta, false, getOpponent(currentPlayer), aiPlayer);
       }
@@ -169,7 +184,7 @@ function minimax(
       const { newBoard, extraTurn } = makeMove(board, move, currentPlayer);
       let evalScore: number;
       if (extraTurn) {
-        evalScore = minimax(newBoard, depth - 1, alpha, beta, false, currentPlayer, aiPlayer);
+        evalScore = minimax(newBoard, depth, alpha, beta, false, currentPlayer, aiPlayer);
       } else {
         evalScore = minimax(newBoard, depth - 1, alpha, beta, true, getOpponent(currentPlayer), aiPlayer);
       }
@@ -181,26 +196,34 @@ function minimax(
   }
 }
 
-export function getBestMove(board: Board, player: Player, depth: number = 6): number {
+export interface AIMoveInfo {
+  move: number;
+  score: number;
+  allScores: { move: number; score: number }[];
+}
+
+export function getBestMove(board: Board, player: Player, depth: number = 6): AIMoveInfo {
   const moves = getValidMoves(board, player);
-  if (moves.length === 0) return -1;
+  if (moves.length === 0) return { move: -1, score: 0, allScores: [] };
 
   let bestMove = moves[0];
   let bestScore = -Infinity;
+  const allScores: { move: number; score: number }[] = [];
 
   for (const move of moves) {
     const { newBoard, extraTurn } = makeMove(board, move, player);
     let score: number;
     if (extraTurn) {
-      score = minimax(newBoard, depth - 1, -Infinity, Infinity, true, player, player);
+      score = minimax(newBoard, depth, -Infinity, Infinity, true, player, player);
     } else {
       score = minimax(newBoard, depth - 1, -Infinity, Infinity, false, getOpponent(player), player);
     }
+    allScores.push({ move, score });
     if (score > bestScore) {
       bestScore = score;
       bestMove = move;
     }
   }
 
-  return bestMove;
+  return { move: bestMove, score: bestScore, allScores };
 }
