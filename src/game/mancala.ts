@@ -1,10 +1,4 @@
-// Mancala Game Logic
-// Board: 14 pits
-// 0-5: Player 1's pits (bottom)
-// 6: Player 1's store (Mancala)
-// 7-12: Player 2's pits (top)
-// 13: Player 2's store (Mancala)
-
+// Mancala Game Logic - Enhanced Version
 export type Player = 1 | 2;
 export type Board = number[];
 
@@ -19,8 +13,7 @@ export function createInitialBoard(): Board {
 }
 
 export function getPlayerPits(player: Player): number[] {
-  if (player === 1) return [0, 1, 2, 3, 4, 5];
-  return [7, 8, 9, 10, 11, 12];
+  return player === 1 ? [0, 1, 2, 3, 4, 5] : [7, 8, 9, 10, 11, 12];
 }
 
 export function getPlayerStore(player: Player): number {
@@ -45,12 +38,18 @@ export function getValidMoves(board: Board, player: Player): number[] {
   return getPlayerPits(player).filter(pit => board[pit] > 0);
 }
 
+export interface SowingStep {
+  pit: number;
+  boardAfter: Board;
+}
+
 export interface MoveResult {
   newBoard: Board;
   extraTurn: boolean;
   captured: boolean;
   capturedPit: number | null;
   sowingPath: number[];
+  sowingSteps: SowingStep[];
 }
 
 export function makeMove(board: Board, pit: number, player: Player): MoveResult {
@@ -62,6 +61,7 @@ export function makeMove(board: Board, pit: number, player: Player): MoveResult 
   let captured = false;
   let capturedPit: number | null = null;
   const sowingPath: number[] = [];
+  const sowingSteps: SowingStep[] = [];
 
   while (stones > 0) {
     currentIndex = (currentIndex + 1) % 14;
@@ -70,6 +70,7 @@ export function makeMove(board: Board, pit: number, player: Player): MoveResult 
 
     newBoard[currentIndex]++;
     sowingPath.push(currentIndex);
+    sowingSteps.push({ pit: currentIndex, boardAfter: [...newBoard] });
     stones--;
   }
 
@@ -90,7 +91,7 @@ export function makeMove(board: Board, pit: number, player: Player): MoveResult 
     }
   }
 
-  return { newBoard, extraTurn, captured, capturedPit, sowingPath };
+  return { newBoard, extraTurn, captured, capturedPit, sowingPath, sowingSteps };
 }
 
 export function isGameOver(board: Board): boolean {
@@ -131,19 +132,22 @@ export function getWinner(board: Board): Player | 0 {
   return 0;
 }
 
-// AI - Minimax with Alpha-Beta Pruning
+// Enhanced AI with better evaluation
 function evaluateBoard(board: Board, aiPlayer: Player): number {
   const aiStore = getPlayerStore(aiPlayer);
   const opponentStore = getPlayerStore(getOpponent(aiPlayer));
   const diff = board[aiStore] - board[opponentStore];
   
-  // Bonus for having more stones on own side
   const aiPits = getPlayerPits(aiPlayer);
   const oppPits = getPlayerPits(getOpponent(aiPlayer));
   const aiPitStones = aiPits.reduce((s, p) => s + board[p], 0);
   const oppPitStones = oppPits.reduce((s, p) => s + board[p], 0);
   
-  return diff * 2 + (aiPitStones - oppPitStones) * 0.3;
+  // Bonus for empty pits (can capture)
+  const aiEmptyPits = aiPits.filter(p => board[p] === 0).length;
+  const oppEmptyPits = oppPits.filter(p => board[p] === 0).length;
+  
+  return diff * 2 + (aiPitStones - oppPitStones) * 0.3 + (oppEmptyPits - aiEmptyPits) * 0.5;
 }
 
 function minimax(
