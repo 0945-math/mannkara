@@ -1,4 +1,10 @@
-// Mancala Game Logic - Enhanced Version
+// マンカラの正しいルール実装
+// ボード: 14個の穴
+// 0-5: プレイヤー1の穴（下側）
+// 6: プレイヤー1のマンカラ（ストア）
+// 7-12: プレイヤー2の穴（上側）
+// 13: プレイヤー2のマンカラ（ストア）
+
 export type Player = 1 | 2;
 export type Board = number[];
 
@@ -7,8 +13,8 @@ export const PITS_PER_SIDE = 6;
 
 export function createInitialBoard(): Board {
   const board: Board = new Array(14).fill(INITIAL_STONES);
-  board[6] = 0;
-  board[13] = 0;
+  board[6] = 0;  // プレイヤー1のマンカラ
+  board[13] = 0; // プレイヤー2のマンカラ
   return board;
 }
 
@@ -25,6 +31,7 @@ export function getOpponent(player: Player): Player {
 }
 
 export function getOppositePit(pit: number): number {
+  // 穴iの反対側は (12 - i)
   return 12 - pit;
 }
 
@@ -63,8 +70,11 @@ export function makeMove(board: Board, pit: number, player: Player): MoveResult 
   const sowingPath: number[] = [];
   const sowingSteps: SowingStep[] = [];
 
+  // 石を反時計回りに1つずつ配る
   while (stones > 0) {
     currentIndex = (currentIndex + 1) % 14;
+    
+    // 相手のマンカラには石を入れない
     if (player === 1 && currentIndex === 13) continue;
     if (player === 2 && currentIndex === 6) continue;
 
@@ -74,11 +84,14 @@ export function makeMove(board: Board, pit: number, player: Player): MoveResult 
     stones--;
   }
 
+  // 最後の石が自分のマンカラに入ったらボーナスターン
   const playerStore = getPlayerStore(player);
   if (currentIndex === playerStore) {
     extraTurn = true;
   }
 
+  // キャプチャ: 最後の石が自分の側の空の穴に入ったら
+  // 反対側の穴の石と自分のマンカラに入れる
   const playerPits = getPlayerPits(player);
   if (playerPits.includes(currentIndex) && newBoard[currentIndex] === 1) {
     const oppositePit = getOppositePit(currentIndex);
@@ -107,6 +120,7 @@ export function getFinalBoard(board: Board): Board {
   const p1Pits = getPlayerPits(1);
   const p2Pits = getPlayerPits(2);
 
+  // 残った石を各プレイヤーのマンカラに入れる
   let p1Remaining = 0;
   let p2Remaining = 0;
 
@@ -129,27 +143,52 @@ export function getFinalBoard(board: Board): Board {
 export function getWinner(board: Board): Player | 0 {
   if (board[6] > board[13]) return 1;
   if (board[13] > board[6]) return 2;
-  return 0;
+  return 0; // 引き分け
 }
 
-// Enhanced AI with better evaluation
+// 強化されたAI評価関数
 function evaluateBoard(board: Board, aiPlayer: Player): number {
   const aiStore = getPlayerStore(aiPlayer);
   const opponentStore = getPlayerStore(getOpponent(aiPlayer));
-  const diff = board[aiStore] - board[opponentStore];
   
+  // マンカラの石の差（最重要）
+  const storeDiff = board[aiStore] - board[opponentStore];
+  
+  // 自分の穴の石の総数
   const aiPits = getPlayerPits(aiPlayer);
   const oppPits = getPlayerPits(getOpponent(aiPlayer));
   const aiPitStones = aiPits.reduce((s, p) => s + board[p], 0);
   const oppPitStones = oppPits.reduce((s, p) => s + board[p], 0);
   
-  // Bonus for empty pits (can capture)
+  // 空の穴の数（キャプチャの機会）
   const aiEmptyPits = aiPits.filter(p => board[p] === 0).length;
   const oppEmptyPits = oppPits.filter(p => board[p] === 0).length;
   
-  return diff * 2 + (aiPitStones - oppPitStones) * 0.3 + (oppEmptyPits - aiEmptyPits) * 0.5;
+  // 相手の空の穴はキャプチャの機会（良い）
+  // 自分の空の穴はキャプチャされるリスク（悪い）
+  const captureOpportunity = oppEmptyPits * 2;
+  const captureRisk = aiEmptyPits * 1.5;
+  
+  // 最後の石がマンカラに入る可能性を評価
+  let extraTurnPotential = 0;
+  for (const pit of aiPits) {
+    if (board[pit] > 0) {
+      const distance = aiStore - pit;
+      if (distance > 0 && board[pit] === distance) {
+        extraTurnPotential += 3; // ボーナスターンの機会
+      }
+    }
+  }
+  
+  // 総合評価
+  return storeDiff * 3 + 
+         (aiPitStones - oppPitStones) * 0.5 + 
+         captureOpportunity - 
+         captureRisk + 
+         extraTurnPotential;
 }
 
+// ミニマックス法（アルファベータ枝刈り付き）
 function minimax(
   board: Board,
   depth: number,
@@ -173,13 +212,14 @@ function minimax(
       const { newBoard, extraTurn } = makeMove(board, move, currentPlayer);
       let evalScore: number;
       if (extraTurn) {
+        // ボーナスターンの場合、深さを減らさない
         evalScore = minimax(newBoard, depth, alpha, beta, true, currentPlayer, aiPlayer);
       } else {
         evalScore = minimax(newBoard, depth - 1, alpha, beta, false, getOpponent(currentPlayer), aiPlayer);
       }
       maxEval = Math.max(maxEval, evalScore);
       alpha = Math.max(alpha, evalScore);
-      if (beta <= alpha) break;
+      if (beta <= alpha) break; // アルファベータ枝刈り
     }
     return maxEval;
   } else {
@@ -194,7 +234,7 @@ function minimax(
       }
       minEval = Math.min(minEval, evalScore);
       beta = Math.min(beta, evalScore);
-      if (beta <= alpha) break;
+      if (beta <= alpha) break; // アルファベータ枝刈り
     }
     return minEval;
   }
@@ -206,7 +246,7 @@ export interface AIMoveInfo {
   allScores: { move: number; score: number }[];
 }
 
-export function getBestMove(board: Board, player: Player, depth: number = 6): AIMoveInfo {
+export function getBestMove(board: Board, player: Player, depth: number = 8): AIMoveInfo {
   const moves = getValidMoves(board, player);
   if (moves.length === 0) return { move: -1, score: 0, allScores: [] };
 
@@ -232,7 +272,7 @@ export function getBestMove(board: Board, player: Player, depth: number = 6): AI
   return { move: bestMove, score: bestScore, allScores };
 }
 
-// Get hint for player (returns best move for player 1)
+// プレイヤー用のヒント（浅い探索）
 export function getHint(board: Board): { pit: number; score: number } | null {
   const moves = getValidMoves(board, 1);
   if (moves.length === 0) return null;
@@ -244,9 +284,9 @@ export function getHint(board: Board): { pit: number; score: number } | null {
     const { newBoard, extraTurn } = makeMove(board, move, 1);
     let score: number;
     if (extraTurn) {
-      score = minimax(newBoard, 4, -Infinity, Infinity, true, 1, 1);
+      score = minimax(newBoard, 5, -Infinity, Infinity, true, 1, 1);
     } else {
-      score = minimax(newBoard, 3, -Infinity, Infinity, false, 2, 1);
+      score = minimax(newBoard, 4, -Infinity, Infinity, false, 2, 1);
     }
     if (score > bestScore) {
       bestScore = score;

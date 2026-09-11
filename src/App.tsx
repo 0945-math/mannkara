@@ -23,9 +23,9 @@ type Difficulty = 'easy' | 'medium' | 'hard';
 
 function getAIDepth(difficulty: Difficulty): number {
   switch (difficulty) {
-    case 'easy': return 2;
-    case 'medium': return 5;
-    case 'hard': return 7;
+    case 'easy': return 4;
+    case 'medium': return 8;
+    case 'hard': return 12;
   }
 }
 

@@ -173,9 +173,9 @@ export default function StartScreen({ onStart, difficulty, onDifficultyChange }:
             </label>
             <div className="grid grid-cols-3 gap-2">
               {([
-                { key: 'easy' as const, label: '簡単', icon: '🌱', desc: 'AI Depth 2' },
-                { key: 'medium' as const, label: '普通', icon: '🌿', desc: 'AI Depth 5' },
-                { key: 'hard' as const, label: '難しい', icon: '🌳', desc: 'AI Depth 7' },
+                { key: 'easy' as const, label: '簡単', icon: '🌱', desc: 'AI Depth 4' },
+                { key: 'medium' as const, label: '普通', icon: '🌿', desc: 'AI Depth 8' },
+                { key: 'hard' as const, label: '難しい', icon: '🌳', desc: 'AI Depth 12' },
               ]).map((d) => (
                 <button
                   key={d.key}
