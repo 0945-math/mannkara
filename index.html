@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>マンカラ・ベーシック</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:#17130f;color:#f5e9d2}.wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:24px}.panel{width:min(1000px,100%)}header{display:flex;justify-content:space-between;align-items:center}button{font:inherit}.control{padding:10px 18px;border:0;border-radius:10px;background:#d99a32;color:#20150a;font-weight:700;cursor:pointer}.message{padding:12px 18px;background:#2b2118;border-radius:12px}.board{display:grid;grid-template-columns:110px 1fr 110px;gap:18px;align-items:center;padding:24px;border-radius:24px;background:#70461f;border:8px solid #9b6630;box-shadow:inset 0 0 40px #241308}.row{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}.store{min-height:150px;border-radius:60px;background:#3a2617;display:flex;flex-direction:column;justify-content:center;align-items:center}.store b{font-size:38px}.pit{min-height:100px;border-radius:50%;border:2px solid #b77b3c;background:#332217;color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center}.pit:disabled{cursor:default;opacity:.7}.pit:not(:disabled):hover{outline:3px solid #f2bf5c}.pit strong{font-size:30px}.help{opacity:.75;margin-top:18px}select{padding:8px;background:#211811;color:#fff;border:1px solid #6d5036;border-radius:8px}@media(max-width:760px){.board{grid-template-columns:1fr}.row{gap:6px}.store{min-height:80px;border-radius:18px}.pit{min-height:70px}.store:first-child{order:0}.row{order:1}.store:last-child{order:2}}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="panel">
+<header><h1>マンカラ・ベーシック</h1><button class="control" id="reset">リセット</button></header>
+<p class="message" id="message"></p>
+<div class="board">
+<div class="store"><span>AIゴール</span><b id="s2">0</b></div>
+<div class="row" id="ai"></div>
+<div class="row" id="human"></div>
+<div class="store"><span>あなたのゴール</span><b id="s1">0</b></div>
+</div>
+<p class="help">各ポケット4個。キャプチャなし。最後の石がゴールに入ればもう一度。自分の陣地を先に空にした側が勝ちです。</p>
+<label>AI難易度 <select id="difficulty"><option value="easy">簡単</option><option value="normal" selected>普通</option><option value="hard">難しい</option></select></label>
+</div></div>
+<script>
+const P1=[0,1,2,3,4,5],P2=[7,8,9,10,11,12];
+let board,turn=1,busy=false;
+const $=id=>document.getElementById(id);
+function reset(){board=Array(14).fill(4);board[6]=board[13]=0;turn=1;busy=false;render();msg('あなたの番です。');}
+function empty(p){return (p?P2:P1).every(i=>board[i]===0)}
+function over(){return empty(0)||empty(1)}
+function move(i,p){
+ if(busy||turn!==p||board[i]===0)return;
+ let n=board.slice(),stones=n[i];n[i]=0;let x=i;
+ while(stones--){x=(x+1)%14;n[x]++}
+ board=n;
+ if(over()){busy=true;render();msg(empty(0)?'あなたの勝ちです。':'AIの勝ちです。');return}
+ if(x===6||x===13){render();msg(p===1?'ゴールで終わったので、もう一度です。':'AIはゴールで終わったので、もう一度です。');if(p===2)ai();return}
+ turn=p===1?2:1;render();msg(turn===1?'あなたの番です。':'AIの番です。');if(turn===2)ai();
+}
+function choose(){
+ const m=P2.filter(i=>board[i]>0),d=$('difficulty').value;
+ if(d==='easy')return m[Math.floor(Math.random()*m.length)];
+ let best=m[0],score=-1e9;
+ for(const i of m){let stones=board[i],x=i;for(let k=0;k<stones;k++)x=(x+1)%14;let s=(x===13?100:0)+board[i];if(d==='hard')s+=board[P2[(P2.indexOf(i)+1)%6]];if(s>score){score=s;best=i}}
+ return best;
+}
+function ai(){if(over()||turn!==2)return;busy=true;setTimeout(()=>{busy=false;move(choose(),2)},350)}
+function msg(t){$('message').textContent=t}
+function render(){
+ $('s1').textContent=board[6];$('s2').textContent=board[13];
+ $('human').innerHTML='';$('ai').innerHTML='';
+ P1.forEach(i=>pit($('human'),i,1));P2.forEach(i=>pit($('ai'),i,2));
+}
+function pit(el,i,p){
+ const b=document.createElement('button');b.className='pit';b.disabled=p!==1||turn!==1||busy||board[i]===0;b.innerHTML='<small>穴 '+((p===1?i+1:i+1))+'</small><strong>'+board[i]+'</strong>';b.onclick=()=>move(i,p);el.appendChild(b);
+}
+$('reset').onclick=reset;reset();
+</script>
+</body></html>
